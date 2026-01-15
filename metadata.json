@@ -1,0 +1,5 @@
+{
+  "name": "Gestor FEOE Extremadura",
+  "description": "Prototipo de Gestor Documental para la Fase de Formación en Empresa (FEOE) imitando la interfaz de Rayuela.",
+  "requestFramePermissions": []
+}
