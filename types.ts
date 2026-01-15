@@ -20,8 +20,8 @@ export enum TipoAnexo {
   ANEXO_II = 'Anexo II (Intensivo)',
   ANEXO_IV_A = 'Anexo IV-A (Org. Público)',
   ANEXO_IV_B = 'Anexo IV-B (Centro Educativo)',
-  ANEXO_V = 'Anexo V (Dualización)',
-  ANEXO_VIII_A = 'Anexo VIII-A (Extraordinarias)',
+  ANEXO_V = 'Anexo V - Solicitud de dualización',
+  ANEXO_VIII_A = 'Anexo VIII-A - Solicitud condiciones extraordinarias',
   ANEXO_VIII_B = 'Anexo VIII-B (Julio)',
   ANEXO_IX = 'Anexo IX (Exención)',
   ANEXO_XIII = 'Anexo XIII (NEE)'
@@ -83,6 +83,22 @@ export interface Solicitud {
   // Campos específicos Anexo II
   feoe_inicio?: string;
   feoe_fin?: string;
+  // Campos específicos Anexo IV-A
+  numero_convenio?: string;
+  organismo_publico?: string;
+  // Campos específicos Anexo IV-B
+  tutor_dual_destino?: string;
+  centro_destino_codigo?: string;
+  // Campos específicos Anexo V
+  curso_dual?: string;
+  // Campos específicos Anexo VIII-A
+  condicion_extraordinaria?: string;
+  justificacion_extraordinaria?: string;
+  empresa_nombre?: string;
+  empresa_localidad?: string;
+  empresa_provincia?: string;
+  empresa_direccion_extranjera?: string;
+  tutor_empresa?: string;
   // Campos de observaciones/resolución
   observaciones_inspeccion?: string;
   observaciones_resolucion?: string;

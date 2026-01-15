@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Solicitud, Usuario, Rol, Estado, HistorialEntrada, TipoAnexo, Documento, Alumno, Centro } from '../types';
 import { getResolverRole } from '../constants';
-import { CheckCircle, XCircle, FileText, ArrowLeft, Send, History, User, ShieldAlert, Edit, Save, Trash2, Upload, AlertCircle, Eye, Calendar, UserPlus } from 'lucide-react';
+import { CheckCircle, XCircle, FileText, ArrowLeft, Send, History, User, ShieldAlert, Edit, Save, Trash2, Upload, AlertCircle, Eye, Calendar, UserPlus, Building2, School, GraduationCap, Globe } from 'lucide-react';
 
 interface ReviewPanelProps {
   request: Solicitud;
@@ -20,6 +20,36 @@ const MOTIVOS_ANEXO_I = [
   "Otros"
 ];
 
+const CURSOS_DISPONIBLES = [
+  "CUIDADOS AUXILIARES DE ENFERMERÍA",
+  "DIETÉTICA",
+  "DESARROLLO DE APLICACIONES MULTIPLATAFORMA",
+  "DESARROLLO DE APLICACIONES WEB",
+  "ADMINISTRACIÓN DE SISTEMAS INFORMÁTICOS EN RED",
+  "GESTIÓN ADMINISTRATIVA",
+  "ADMINISTRACIÓN Y FINANZAS",
+  "ELECTROMECÁNICA DE VEHÍCULOS AUTOMÓVILES"
+];
+
+const CONDICIONES_EXTRAORDINARIAS = [
+    "Fuera de la Comunidad Autónoma, dentro del territorio nacional",
+    "En otros países de la Unión Europea",
+    "En otros países de la Unión Europea bajo un programa Erasmus+ o similar",
+    "En países de fuera de la Unión Europea, siempre que se realice bajo un Programa Erasmus+ o similar",
+    "En días no lectivos",
+    "En horario nocturno (por ejemplo, fuera del horario de 22:00 a 6:00 horas)",
+    "Con periodo menor a dos días de descanso semanal",
+    "Otros supuestos que se determinen"
+];
+
+const PROVINCIAS = [
+    "Álava", "Albacete", "Alicante", "Almería", "Asturias", "Ávila", "Badajoz", "Barcelona", "Burgos", "Cáceres", "Cádiz", "Cantabria", "Castellón", 
+    "Ciudad Real", "Córdoba", "Cuenca", "Gerona", "Granada", "Guadalajara", "Guipúzcoa", "Huelva", "Huesca", "Islas Baleares", "Jaén", "La Coruña", 
+    "La Rioja", "Las Palmas", "León", "Lérida", "Lugo", "Madrid", "Málaga", "Murcia", "Navarra", "Orense", "Palencia", "Pontevedra", "Salamanca", 
+    "Santa Cruz de Tenerife", "Segovia", "Sevilla", "Soria", "Tarragona", "Teruel", "Toledo", "Valencia", "Valladolid", "Vizcaya", "Zamora", "Zaragoza", 
+    "Ceuta", "Melilla", "Extranjero"
+];
+
 export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos: allAlumnos, centros, onClose, onUpdate }) => {
   const [observaciones, setObservaciones] = useState('');
   
@@ -28,16 +58,38 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
   const [editAlumnos, setEditAlumnos] = useState<string[]>(request.alumnos_implicados);
   const [editDocs, setEditDocs] = useState<Documento[]>(request.documentos_adjuntos);
   const [newFiles, setNewFiles] = useState<{file: File, type?: string}[]>([]);
+  
+  // Edit Fields specific
   const [editMotivo, setEditMotivo] = useState<string>(request.motivo || '');
   const [editMotivoOtros, setEditMotivoOtros] = useState<string>(request.motivo_otros || '');
   const [editFeoeInicio, setEditFeoeInicio] = useState(request.feoe_inicio || '');
   const [editFeoeFin, setEditFeoeFin] = useState(request.feoe_fin || '');
+  const [editNumeroConvenio, setEditNumeroConvenio] = useState(request.numero_convenio || '');
+  const [editOrganismoPublico, setEditOrganismoPublico] = useState(request.organismo_publico || '');
+  
+  // Edit Fields IV-B
+  const [editTutorDestino, setEditTutorDestino] = useState(request.tutor_dual_destino || '');
+  const [editCentroDestino, setEditCentroDestino] = useState(request.centro_destino_codigo || '');
+
+  // Edit Fields V
+  const [editCursoDual, setEditCursoDual] = useState(request.curso_dual || '');
+
+  // Edit Fields VIII-A
+  const [editExtraCondicion, setEditExtraCondicion] = useState(request.condicion_extraordinaria || '');
+  const [editExtraJustificacion, setEditExtraJustificacion] = useState(request.justificacion_extraordinaria || '');
+  const [editEmpresaNombre, setEditEmpresaNombre] = useState(request.empresa_nombre || '');
+  const [editEmpresaLocalidad, setEditEmpresaLocalidad] = useState(request.empresa_localidad || '');
+  const [editEmpresaProvincia, setEditEmpresaProvincia] = useState(request.empresa_provincia || '');
+  const [editEmpresaDireccion, setEditEmpresaDireccion] = useState(request.empresa_direccion_extranjera || '');
+  const [editTutorEmpresa, setEditTutorEmpresa] = useState(request.tutor_empresa || '');
   
   // Admin states
   const [adminTargetState, setAdminTargetState] = useState<Estado>(request.estado);
   const [adminReason, setAdminReason] = useState('');
 
   const centro = centros.find(c => c.codigo === request.codigo_centro);
+  const centroDestinoInfo = centros.find(c => c.codigo === request.centro_destino_codigo);
+
   const alumnosSolicitud = allAlumnos.filter(a => request.alumnos_implicados.includes(a.dni));
   const availableAlumnos = allAlumnos.filter(a => a.codigo_centro === request.codigo_centro);
   const unselectedEditAlumnos = availableAlumnos.filter(a => !editAlumnos.includes(a.dni));
@@ -104,6 +156,31 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
        if (!editFeoeInicio || !editFeoeFin) { alert("Periodo FEOE obligatorio."); return; }
     }
 
+    if (request.tipo_anexo === TipoAnexo.ANEXO_IV_A) {
+        if (!editNumeroConvenio) { alert("Número de convenio obligatorio"); return; }
+        if (!editOrganismoPublico) { alert("Organismo público obligatorio"); return; }
+        const convenioRegex = /^\d{8}-.+$/;
+        if (!convenioRegex.test(editNumeroConvenio)) {
+             alert("El formato del Número de Convenio no es válido. Debe ser: CódigoCentro-Número");
+             return;
+        }
+    }
+
+    if (request.tipo_anexo === TipoAnexo.ANEXO_IV_B) {
+        if (!editTutorDestino) { alert("Tutor dual obligatorio"); return; }
+        if (!editCentroDestino) { alert("Centro de destino obligatorio"); return; }
+    }
+
+    if (request.tipo_anexo === TipoAnexo.ANEXO_V) {
+        if (!editCursoDual) { alert("Curso dual obligatorio"); return; }
+    }
+
+    if (request.tipo_anexo === TipoAnexo.ANEXO_VIII_A) {
+        if (!editExtraCondicion) { alert("Condición obligatoria"); return; }
+        if (!editEmpresaNombre) { alert("Empresa obligatoria"); return; }
+        if (!editEmpresaProvincia) { alert("Provincia obligatoria"); return; }
+    }
+
     const processedNewDocs: Documento[] = newFiles.map(f => ({ 
         nombre: f.file.name, 
         fecha: new Date().toISOString().split('T')[0],
@@ -120,6 +197,18 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
       motivo_otros: editMotivoOtros,
       feoe_inicio: editFeoeInicio,
       feoe_fin: editFeoeFin,
+      numero_convenio: editNumeroConvenio,
+      organismo_publico: editOrganismoPublico,
+      tutor_dual_destino: editTutorDestino,
+      centro_destino_codigo: editCentroDestino,
+      curso_dual: editCursoDual,
+      condicion_extraordinaria: editExtraCondicion,
+      justificacion_extraordinaria: editExtraJustificacion,
+      empresa_nombre: editEmpresaNombre,
+      empresa_localidad: editEmpresaLocalidad,
+      empresa_provincia: editEmpresaProvincia,
+      empresa_direccion_extranjera: editEmpresaDireccion,
+      tutor_empresa: editTutorEmpresa,
       historial: [...request.historial, createHistoryEntry("Modificación (Subsanación)", request.estado, "Datos modificados por el director.")]
     });
     setIsEditing(false);
@@ -171,6 +260,8 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
   const formatDate = (isoString: string) => {
     return new Date(isoString).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
+
+  const showDocs = request.tipo_anexo !== TipoAnexo.ANEXO_IV_B && request.tipo_anexo !== TipoAnexo.ANEXO_V;
 
   return (
     <div className="bg-white shadow-xl rounded-lg border border-gray-200 flex flex-col h-full max-w-5xl mx-auto">
@@ -228,6 +319,218 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
                      </div>
                  )}
              </section>
+          )}
+
+          {/* Anexo IV-A Details */}
+          {(request.tipo_anexo === TipoAnexo.ANEXO_IV_A || isEditing) && request.tipo_anexo === TipoAnexo.ANEXO_IV_A && (
+            <section className="bg-amber-50 border border-amber-100 p-4 rounded-md">
+                <h3 className="text-sm font-semibold text-amber-800 uppercase tracking-wider mb-3 flex items-center">
+                    <Building2 className="h-4 w-4 mr-2" /> Detalles Organismo Público
+                </h3>
+                 {isEditing ? (
+                     <div className="space-y-4">
+                        <div>
+                            <label className="block text-xs text-gray-500 mb-1">Número Convenio</label>
+                            <input 
+                                type="text" 
+                                value={editNumeroConvenio} 
+                                onChange={e => setEditNumeroConvenio(e.target.value)} 
+                                className="w-full text-sm border p-1 rounded" 
+                                placeholder="00000000-XXX"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-500 mb-1">Organismo Público</label>
+                            <textarea 
+                                value={editOrganismoPublico} 
+                                onChange={e => setEditOrganismoPublico(e.target.value)} 
+                                className="w-full text-sm border p-1 rounded h-20"
+                            />
+                            <p className="text-[10px] text-gray-400 italic mt-1">(Identificar ministerio, consejería, diputación...)</p>
+                        </div>
+                     </div>
+                 ) : (
+                     <div className="space-y-3">
+                         <div>
+                             <p className="text-xs text-gray-500 uppercase">Convenio</p>
+                             <p className="text-sm font-bold text-gray-800">{request.numero_convenio || '---'}</p>
+                         </div>
+                         <div>
+                             <p className="text-xs text-gray-500 uppercase">Organismo</p>
+                             <p className="text-sm text-gray-800 whitespace-pre-wrap">{request.organismo_publico || '---'}</p>
+                         </div>
+                     </div>
+                 )}
+            </section>
+          )}
+
+           {/* Anexo IV-B Details */}
+           {(request.tipo_anexo === TipoAnexo.ANEXO_IV_B || isEditing) && request.tipo_anexo === TipoAnexo.ANEXO_IV_B && (
+            <section className="bg-teal-50 border border-teal-100 p-4 rounded-md">
+                <h3 className="text-sm font-semibold text-teal-800 uppercase tracking-wider mb-3 flex items-center">
+                    <School className="h-4 w-4 mr-2" /> Detalles Centro Educativo
+                </h3>
+                 {isEditing ? (
+                     <div className="space-y-4">
+                        <div>
+                            <label className="block text-xs text-gray-500 mb-1">Tutor/a Dual en Destino</label>
+                            <input 
+                                type="text" 
+                                value={editTutorDestino} 
+                                onChange={e => setEditTutorDestino(e.target.value)} 
+                                className="w-full text-sm border p-1 rounded" 
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-500 mb-1">Centro de Destino</label>
+                            <select
+                                value={editCentroDestino}
+                                onChange={(e) => setEditCentroDestino(e.target.value)}
+                                className="w-full text-sm border p-1 rounded"
+                            >
+                                <option value="">-- Seleccionar --</option>
+                                {centros.map(c => <option key={c.codigo} value={c.codigo}>{c.nombre} ({c.localidad})</option>)}
+                            </select>
+                        </div>
+                     </div>
+                 ) : (
+                     <div className="space-y-3">
+                         <div>
+                             <p className="text-xs text-gray-500 uppercase">Tutor/a Dual</p>
+                             <p className="text-sm font-bold text-gray-800">{request.tutor_dual_destino || '---'}</p>
+                         </div>
+                         <div>
+                             <p className="text-xs text-gray-500 uppercase">Centro de Destino</p>
+                             <p className="text-sm text-gray-800">
+                                 {centroDestinoInfo ? `${centroDestinoInfo.nombre} (${centroDestinoInfo.localidad})` : request.centro_destino_codigo}
+                             </p>
+                         </div>
+                     </div>
+                 )}
+            </section>
+          )}
+
+          {/* Anexo V Details */}
+          {(request.tipo_anexo === TipoAnexo.ANEXO_V || isEditing) && request.tipo_anexo === TipoAnexo.ANEXO_V && (
+            <section className="bg-indigo-50 border border-indigo-100 p-4 rounded-md">
+                <h3 className="text-sm font-semibold text-indigo-800 uppercase tracking-wider mb-3 flex items-center">
+                    <GraduationCap className="h-4 w-4 mr-2" /> Compromiso de Dualización
+                </h3>
+                 {isEditing ? (
+                     <div className="space-y-4">
+                        <div>
+                            <label className="block text-xs text-gray-500 mb-1">Ciclo Formativo</label>
+                            <select
+                                value={editCursoDual}
+                                onChange={(e) => setEditCursoDual(e.target.value)}
+                                className="w-full text-sm border p-1 rounded"
+                            >
+                                <option value="">-- Seleccionar --</option>
+                                {CURSOS_DISPONIBLES.map(c => (
+                                    <option key={c} value={c}>{c}</option>
+                                ))}
+                            </select>
+                        </div>
+                     </div>
+                 ) : (
+                     <div className="space-y-3">
+                         <div>
+                             <p className="text-xs text-gray-500 uppercase">Ciclo Formativo Solicitado</p>
+                             <p className="text-sm font-bold text-gray-800">{request.curso_dual || '---'}</p>
+                         </div>
+                     </div>
+                 )}
+            </section>
+          )}
+
+          {/* Anexo VIII-A Details */}
+          {(request.tipo_anexo === TipoAnexo.ANEXO_VIII_A || isEditing) && request.tipo_anexo === TipoAnexo.ANEXO_VIII_A && (
+            <section className="bg-orange-50 border border-orange-100 p-4 rounded-md">
+                <h3 className="text-sm font-semibold text-orange-800 uppercase tracking-wider mb-3 flex items-center">
+                    <Globe className="h-4 w-4 mr-2" /> Condiciones Extraordinarias
+                </h3>
+                 {isEditing ? (
+                     <div className="space-y-4">
+                        <div>
+                            <label className="block text-xs text-gray-500 mb-1">Condición</label>
+                            <select
+                                value={editExtraCondicion}
+                                onChange={(e) => setEditExtraCondicion(e.target.value)}
+                                className="w-full text-sm border p-1 rounded"
+                            >
+                                <option value="">-- Seleccionar --</option>
+                                {CONDICIONES_EXTRAORDINARIAS.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-xs text-gray-500 mb-1">Justificación</label>
+                            <textarea 
+                                value={editExtraJustificacion}
+                                onChange={(e) => setEditExtraJustificacion(e.target.value)}
+                                className="w-full text-sm border p-1 rounded h-20"
+                            />
+                        </div>
+                        <div className="border-t pt-2 mt-2">
+                             <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="block text-xs text-gray-500 mb-1">Empresa</label>
+                                    <input type="text" value={editEmpresaNombre} onChange={e => setEditEmpresaNombre(e.target.value)} className="w-full text-sm border p-1 rounded" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-gray-500 mb-1">Tutor/a</label>
+                                    <input type="text" value={editTutorEmpresa} onChange={e => setEditTutorEmpresa(e.target.value)} className="w-full text-sm border p-1 rounded" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-gray-500 mb-1">Localidad</label>
+                                    <input type="text" value={editEmpresaLocalidad} onChange={e => setEditEmpresaLocalidad(e.target.value)} className="w-full text-sm border p-1 rounded" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs text-gray-500 mb-1">Provincia</label>
+                                    <select value={editEmpresaProvincia} onChange={e => setEditEmpresaProvincia(e.target.value)} className="w-full text-sm border p-1 rounded">
+                                        <option value="">-- Seleccionar --</option>
+                                        {PROVINCIAS.map(p => <option key={p} value={p}>{p}</option>)}
+                                    </select>
+                                </div>
+                             </div>
+                             {editEmpresaProvincia === 'Extranjero' && (
+                                 <div className="mt-2">
+                                     <label className="block text-xs text-gray-500 mb-1">Dirección Extranjera</label>
+                                     <textarea value={editEmpresaDireccion} onChange={e => setEditEmpresaDireccion(e.target.value)} className="w-full text-sm border p-1 rounded h-16" />
+                                 </div>
+                             )}
+                        </div>
+                     </div>
+                 ) : (
+                     <div className="space-y-3">
+                         <div>
+                             <p className="text-xs text-gray-500 uppercase">Condición</p>
+                             <p className="text-sm font-bold text-gray-800">{request.condicion_extraordinaria || '---'}</p>
+                             {request.justificacion_extraordinaria && (
+                                 <p className="text-xs text-gray-600 mt-1 italic">"{request.justificacion_extraordinaria}"</p>
+                             )}
+                         </div>
+                         <div className="grid grid-cols-2 gap-2 border-t border-orange-200 pt-2">
+                             <div>
+                                 <p className="text-xs text-gray-500 uppercase">Empresa</p>
+                                 <p className="text-sm font-medium">{request.empresa_nombre}</p>
+                             </div>
+                             <div>
+                                 <p className="text-xs text-gray-500 uppercase">Tutor/a</p>
+                                 <p className="text-sm font-medium">{request.tutor_empresa}</p>
+                             </div>
+                             <div>
+                                 <p className="text-xs text-gray-500 uppercase">Ubicación</p>
+                                 <p className="text-sm font-medium">{request.empresa_localidad} ({request.empresa_provincia})</p>
+                             </div>
+                         </div>
+                         {request.empresa_provincia === 'Extranjero' && (
+                              <div className="bg-orange-100 p-2 rounded text-xs">
+                                  <span className="font-bold">Dirección:</span> {request.empresa_direccion_extranjera}
+                              </div>
+                         )}
+                     </div>
+                 )}
+            </section>
           )}
 
           {/* Motivo (Anexo I) */}
@@ -316,6 +619,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
 
           <section>
             <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Documentos</h3>
+            {showDocs ? (
             <div className="space-y-2">
                 {/* Existing Docs */}
                 {(!isEditing ? request.documentos_adjuntos : editDocs).map((doc, idx) => (
@@ -362,9 +666,26 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
                                 </label>
                              </>
                          )}
+                         {request.tipo_anexo === TipoAnexo.ANEXO_IV_A && (
+                             <label className="cursor-pointer bg-amber-50 hover:bg-amber-100 text-amber-700 px-3 py-1 rounded text-xs flex items-center border border-amber-200">
+                                 + Convenio
+                                 <input type="file" className="hidden" onChange={(e) => handleAddNewFile(e, 'CONVENIO')} />
+                             </label>
+                         )}
+                         {request.tipo_anexo === TipoAnexo.ANEXO_VIII_A && (
+                             <label className="cursor-pointer bg-orange-50 hover:bg-orange-100 text-orange-700 px-3 py-1 rounded text-xs flex items-center border border-orange-200">
+                                 + Convenio
+                                 <input type="file" className="hidden" onChange={(e) => handleAddNewFile(e, 'CONVENIO')} />
+                             </label>
+                         )}
                     </div>
                 )}
             </div>
+            ) : (
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded text-center text-sm text-gray-500 italic">
+                    Este tipo de solicitud no requiere documentación adjunta.
+                </div>
+            )}
           </section>
 
           {/* Timeline */}

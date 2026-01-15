@@ -124,6 +124,7 @@ const App: React.FC = () => {
         <RequestForm 
           user={currentUser}
           alumnos={alumnos}
+          centros={centros}
           onClose={() => setView('DASHBOARD')}
           onSubmit={handleCreateRequest}
         />
