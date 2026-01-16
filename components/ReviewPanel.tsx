@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Solicitud, Usuario, Rol, Estado, HistorialEntrada, TipoAnexo, Documento, Alumno, Centro } from '../types';
 import { getResolverRole } from '../constants';
-import { CheckCircle, XCircle, FileText, ArrowLeft, Send, History, User, ShieldAlert, Edit, Save, Trash2, Upload, AlertCircle, Eye, Calendar, UserPlus, Building2, School, GraduationCap, Globe } from 'lucide-react';
+import { CheckCircle, XCircle, FileText, ArrowLeft, Send, History, User, ShieldAlert, Edit, Save, Trash2, Upload, AlertCircle, Eye, Calendar, UserPlus, Building2, School, GraduationCap, Globe, Download, PenTool, ClipboardSignature } from 'lucide-react';
+import { jsPDF } from "jspdf";
 
 interface ReviewPanelProps {
   request: Solicitud;
@@ -74,7 +75,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
   // Edit Fields V
   const [editCursoDual, setEditCursoDual] = useState(request.curso_dual || '');
 
-  // Edit Fields VIII-A
+  // Edit Fields VIII-A y VIII-B
   const [editExtraCondicion, setEditExtraCondicion] = useState(request.condicion_extraordinaria || '');
   const [editExtraJustificacion, setEditExtraJustificacion] = useState(request.justificacion_extraordinaria || '');
   const [editEmpresaNombre, setEditEmpresaNombre] = useState(request.empresa_nombre || '');
@@ -82,6 +83,9 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
   const [editEmpresaProvincia, setEditEmpresaProvincia] = useState(request.empresa_provincia || '');
   const [editEmpresaDireccion, setEditEmpresaDireccion] = useState(request.empresa_direccion_extranjera || '');
   const [editTutorEmpresa, setEditTutorEmpresa] = useState(request.tutor_empresa || '');
+
+  // Edit Fields XIII
+  const [editNefeJustificacion, setEditNefeJustificacion] = useState(request.justificacion_nefe || '');
   
   // Admin states
   const [adminTargetState, setAdminTargetState] = useState<Estado>(request.estado);
@@ -105,7 +109,36 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
   
   const isSuperUser = user.rol === Rol.SUPERUSER;
   const isDirector = user.rol === Rol.DIRECTOR && user.codigo_centro === request.codigo_centro;
-  const canEdit = isDirector && request.estado !== Estado.RESUELTA_POSITIVA && request.estado !== Estado.RESUELTA_NEGATIVA;
+  
+  // Regla: Una vez creada (no BORRADOR), no se puede editar por el director.
+  const canEdit = isDirector && request.estado === Estado.BORRADOR;
+
+  // Lógica de Firmas (extraer del historial)
+  const getSignatureAction = (actionType: 'CREATION' | 'INSPECTION' | 'RESOLUTION') => {
+      const reversedHistory = [...request.historial].reverse();
+      let entry: HistorialEntrada | undefined;
+
+      if (actionType === 'CREATION') {
+          // Buscamos la primera entrada de creación
+          entry = request.historial.find(h => h.accion.includes("Creación"));
+      } else if (actionType === 'INSPECTION') {
+          entry = reversedHistory.find(h => h.accion.includes("Informe Favorable") || h.accion.includes("Informe Desfavorable"));
+      } else if (actionType === 'RESOLUTION') {
+          entry = reversedHistory.find(h => h.accion.includes("Resolución Estimatoria") || h.accion.includes("Resolución Desestimatoria"));
+      }
+
+      if (!entry) return null;
+
+      let text = "";
+      if (actionType === 'CREATION') text = `Solicitada por ${entry.autor}`;
+      if (actionType === 'INSPECTION') text = entry.accion.includes('Favorable') ? `Informada Favorablemente por ${entry.autor}` : `Informada Desfavorablemente por ${entry.autor}`;
+      if (actionType === 'RESOLUTION') text = entry.accion.includes('Estimatoria') ? `Resuelta Favorablemente por ${entry.autor}` : `Resuelta Desfavorablemente por ${entry.autor}`;
+
+      return {
+          text,
+          date: new Date(entry.fecha).toLocaleString('es-ES')
+      };
+  };
 
   const createHistoryEntry = (accion: string, nuevoEstado: Estado, obs?: string): HistorialEntrada => ({
     fecha: new Date().toISOString(),
@@ -121,7 +154,9 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
       alert("Debe indicar observaciones si el informe es desfavorable.");
       return;
     }
-    const nuevoEstado = favorable ? Estado.PENDIENTE_RESOLUCION : Estado.RESUELTA_NEGATIVA;
+    // Lógica Actualizada: Tanto Favorable como Desfavorable pasan al siguiente revisor (Pendiente Resolución).
+    // El informe desfavorable no cierra la solicitud, la eleva para su resolución negativa.
+    const nuevoEstado = Estado.PENDIENTE_RESOLUCION; 
     const accion = favorable ? "Informe Favorable de Inspección" : "Informe Desfavorable de Inspección";
 
     onUpdate(request.id, {
@@ -133,6 +168,12 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
   };
 
   const handleResolution = (approved: boolean) => {
+    // VALIDACIÓN OBLIGATORIA: Si se deniega (approved = false), observaciones son obligatorias.
+    if (!approved && !observaciones.trim()) {
+        alert("Para emitir una Resolución Desestimatoria (Denegada) es OBLIGATORIO indicar la fundamentación legal o motivo en las observaciones.");
+        return;
+    }
+
     const nuevoEstado = approved ? Estado.RESUELTA_POSITIVA : Estado.RESUELTA_NEGATIVA;
     const accion = approved ? "Resolución Estimatoria" : "Resolución Desestimatoria";
 
@@ -152,8 +193,11 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
        if (editMotivo === 'Otros' && !editMotivoOtros) { alert("Especifique 'Otros'."); return; }
     }
     
-    if (request.tipo_anexo === TipoAnexo.ANEXO_II) {
+    if (request.tipo_anexo === TipoAnexo.ANEXO_II || request.tipo_anexo === TipoAnexo.ANEXO_XIII) {
        if (!editFeoeInicio || !editFeoeFin) { alert("Periodo FEOE obligatorio."); return; }
+       if (request.tipo_anexo === TipoAnexo.ANEXO_XIII && !editNefeJustificacion) {
+           alert("Justificación obligatoria."); return;
+       }
     }
 
     if (request.tipo_anexo === TipoAnexo.ANEXO_IV_A) {
@@ -175,7 +219,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
         if (!editCursoDual) { alert("Curso dual obligatorio"); return; }
     }
 
-    if (request.tipo_anexo === TipoAnexo.ANEXO_VIII_A) {
+    if (request.tipo_anexo === TipoAnexo.ANEXO_VIII_A || request.tipo_anexo === TipoAnexo.ANEXO_VIII_B) {
         if (!editExtraCondicion) { alert("Condición obligatoria"); return; }
         if (!editEmpresaNombre) { alert("Empresa obligatoria"); return; }
         if (!editEmpresaProvincia) { alert("Provincia obligatoria"); return; }
@@ -209,6 +253,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
       empresa_provincia: editEmpresaProvincia,
       empresa_direccion_extranjera: editEmpresaDireccion,
       tutor_empresa: editTutorEmpresa,
+      justificacion_nefe: editNefeJustificacion,
       historial: [...request.historial, createHistoryEntry("Modificación (Subsanación)", request.estado, "Datos modificados por el director.")]
     });
     setIsEditing(false);
@@ -261,19 +306,96 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
     return new Date(isoString).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
+  const generatePDF = () => {
+    const doc = new jsPDF();
+    
+    // Header
+    doc.setFontSize(16);
+    doc.text("Consejería de Educación - FEOE", 105, 20, { align: "center" });
+    doc.setFontSize(12);
+    doc.text(`Solicitud: ${request.id}`, 105, 30, { align: "center" });
+    
+    doc.setLineWidth(0.5);
+    doc.line(20, 35, 190, 35);
+    
+    // Details
+    doc.setFontSize(10);
+    let y = 45;
+    const lineHeight = 7;
+    
+    doc.setFont("helvetica", "bold"); doc.text("Tipo:", 20, y); doc.setFont("helvetica", "normal");
+    doc.text(request.tipo_anexo, 60, y); y += lineHeight;
+    
+    doc.setFont("helvetica", "bold"); doc.text("Estado:", 20, y); doc.setFont("helvetica", "normal");
+    doc.text(request.estado.replace(/_/g, " "), 60, y); y += lineHeight;
+    
+    doc.setFont("helvetica", "bold"); doc.text("Fecha:", 20, y); doc.setFont("helvetica", "normal");
+    doc.text(request.fecha_creacion, 60, y); y += lineHeight;
+    
+    if (centro) {
+        doc.setFont("helvetica", "bold"); doc.text("Centro:", 20, y); doc.setFont("helvetica", "normal");
+        doc.text(`${centro.nombre} (${centro.localidad})`, 60, y); y += lineHeight;
+    }
+
+    y += 5;
+
+    // Campos específicos según tipo
+    if (request.tipo_anexo === TipoAnexo.ANEXO_I && request.motivo) {
+        doc.setFont("helvetica", "bold"); doc.text("Motivo:", 20, y); doc.setFont("helvetica", "normal");
+        doc.text(request.motivo, 60, y); y += lineHeight;
+        if(request.motivo_otros) {
+            doc.text(`Detalle: ${request.motivo_otros}`, 60, y); y += lineHeight;
+        }
+    }
+    
+    if (request.feoe_inicio) {
+         doc.setFont("helvetica", "bold"); doc.text("Periodo FEOE:", 20, y); doc.setFont("helvetica", "normal");
+         doc.text(`Del ${request.feoe_inicio} al ${request.feoe_fin}`, 60, y); y += lineHeight;
+    }
+    
+    if (request.justificacion_nefe) {
+        doc.setFont("helvetica", "bold"); doc.text("Justificación NEFE:", 20, y); doc.setFont("helvetica", "normal");
+        const splitText = doc.splitTextToSize(request.justificacion_nefe, 130);
+        doc.text(splitText, 60, y);
+        y += (splitText.length * lineHeight);
+    }
+    
+    // Alumnos
+    y += 5;
+    doc.setFont("helvetica", "bold"); doc.text("Alumnos Implicados:", 20, y); y += lineHeight;
+    doc.setFont("helvetica", "normal");
+    alumnosSolicitud.forEach(a => {
+        doc.text(`- ${a.apellidos}, ${a.nombre} (${a.dni}) - ${a.curso}`, 25, y);
+        y += lineHeight;
+    });
+
+    // Firma
+    y += 20;
+    doc.text("Firmado:", 20, y);
+    doc.setFont("helvetica", "bold");
+    doc.text(centro?.nombre_director || "Director/a del Centro", 40, y);
+    
+    doc.save(`Solicitud_${request.id}.pdf`);
+  };
+
   const showDocs = request.tipo_anexo !== TipoAnexo.ANEXO_IV_B && request.tipo_anexo !== TipoAnexo.ANEXO_V;
+  const isAnexoVIII = request.tipo_anexo === TipoAnexo.ANEXO_VIII_A || request.tipo_anexo === TipoAnexo.ANEXO_VIII_B;
 
   return (
     <div className="bg-white shadow-xl rounded-lg border border-gray-200 flex flex-col h-full max-w-5xl mx-auto">
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
         <div>
-          <h2 className="text-lg font-bold text-gray-800">{request.tipo_anexo}</h2>
-          <p className="text-sm text-gray-500">ID: {request.id} | {centro?.nombre || 'Centro Desconocido'}</p>
+          <h2 className="text-lg font-bold text-gray-800">{request.tipo_anexo.split(' - ')[0]}</h2>
+          <p className="text-xs text-gray-500 mt-1">{request.tipo_anexo.split(' - ')[1] || ''}</p>
+          <p className="text-sm text-gray-500 mt-1">ID: {request.id} | {centro?.nombre || 'Centro Desconocido'}</p>
         </div>
         <div className="flex items-center space-x-3">
+             <button onClick={generatePDF} className="flex items-center text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded text-sm shadow-sm transition-colors">
+                <Download className="h-4 w-4 mr-2" /> PDF
+            </button>
             {canEdit && !isEditing && (
-                <button onClick={() => setIsEditing(true)} className="flex items-center text-rayuela-700 font-medium hover:bg-rayuela-50 px-3 py-1 rounded border border-rayuela-200 transition-colors">
+                <button onClick={() => setIsEditing(true)} className="flex items-center text-rayuela-700 font-medium hover:bg-rayuela-50 px-3 py-1.5 rounded border border-rayuela-200 transition-colors text-sm">
                     <Edit className="h-4 w-4 mr-1" /> Editar
                 </button>
             )}
@@ -296,10 +418,14 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
         {/* Left Col: Data */}
         <div className="lg:col-span-2 space-y-6">
           
-          {/* FEOE Periodo (Anexo II) */}
-          {(request.tipo_anexo === TipoAnexo.ANEXO_II || isEditing) && request.tipo_anexo === TipoAnexo.ANEXO_II && (
-             <section className="bg-purple-50 border border-purple-100 p-4 rounded-md">
-                 <h3 className="text-sm font-semibold text-purple-800 uppercase tracking-wider mb-3 flex items-center">
+          {/* ... (Previous Sections for FEOE Period, IV-A, IV-B, V, VIII - no changes) ... */}
+          {/* I'll include the relevant sections but omit unchanged internal JSX for brevity if possible, 
+              but to ensure full file replacement I must include everything. */}
+          
+          {/* FEOE Periodo (Anexo II y XIII) */}
+          {(request.tipo_anexo === TipoAnexo.ANEXO_II || request.tipo_anexo === TipoAnexo.ANEXO_XIII || isEditing) && (request.tipo_anexo === TipoAnexo.ANEXO_II || request.tipo_anexo === TipoAnexo.ANEXO_XIII) && (
+             <section className={`${request.tipo_anexo === TipoAnexo.ANEXO_II ? 'bg-purple-50 border-purple-100' : 'bg-pink-50 border-pink-100'} border p-4 rounded-md`}>
+                 <h3 className={`text-sm font-semibold ${request.tipo_anexo === TipoAnexo.ANEXO_II ? 'text-purple-800' : 'text-pink-800'} uppercase tracking-wider mb-3 flex items-center`}>
                      <Calendar className="h-4 w-4 mr-2" /> Periodo FEOE
                  </h3>
                  {isEditing ? (
@@ -314,12 +440,35 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
                          </div>
                      </div>
                  ) : (
-                     <div className="text-sm text-purple-900 font-medium">
+                     <div className={`text-sm ${request.tipo_anexo === TipoAnexo.ANEXO_II ? 'text-purple-900' : 'text-pink-900'} font-medium`}>
                          Del {request.feoe_inicio || '---'} al {request.feoe_fin || '---'}
                      </div>
                  )}
              </section>
           )}
+
+           {/* Anexo XIII Details */}
+           {(request.tipo_anexo === TipoAnexo.ANEXO_XIII || isEditing) && request.tipo_anexo === TipoAnexo.ANEXO_XIII && (
+             <section className="bg-pink-50 border border-pink-100 p-4 rounded-md mt-4">
+                 <h3 className="text-sm font-semibold text-pink-800 uppercase tracking-wider mb-3 flex items-center">
+                     <FileText className="h-4 w-4 mr-2" /> Justificación NEFE
+                 </h3>
+                 {isEditing ? (
+                     <div>
+                         <label className="block text-xs text-gray-500 mb-1">Texto Justificativo</label>
+                         <textarea 
+                             value={editNefeJustificacion}
+                             onChange={e => setEditNefeJustificacion(e.target.value)}
+                             className="w-full text-sm border p-1 rounded h-32"
+                         />
+                     </div>
+                 ) : (
+                     <div className="text-sm text-gray-800 whitespace-pre-wrap bg-white p-2 rounded border border-pink-200">
+                         {request.justificacion_nefe || '---'}
+                     </div>
+                 )}
+             </section>
+           )}
 
           {/* Anexo IV-A Details */}
           {(request.tipo_anexo === TipoAnexo.ANEXO_IV_A || isEditing) && request.tipo_anexo === TipoAnexo.ANEXO_IV_A && (
@@ -443,24 +592,33 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
             </section>
           )}
 
-          {/* Anexo VIII-A Details */}
-          {(request.tipo_anexo === TipoAnexo.ANEXO_VIII_A || isEditing) && request.tipo_anexo === TipoAnexo.ANEXO_VIII_A && (
+          {/* Anexo VIII-A y VIII-B Details */}
+          {(isAnexoVIII || isEditing) && isAnexoVIII && (
             <section className="bg-orange-50 border border-orange-100 p-4 rounded-md">
                 <h3 className="text-sm font-semibold text-orange-800 uppercase tracking-wider mb-3 flex items-center">
-                    <Globe className="h-4 w-4 mr-2" /> Condiciones Extraordinarias
+                    <Globe className="h-4 w-4 mr-2" /> {request.tipo_anexo === TipoAnexo.ANEXO_VIII_B ? "Detalles Anexo VIII-B (Mes de Julio)" : "Condiciones Extraordinarias"}
                 </h3>
                  {isEditing ? (
                      <div className="space-y-4">
                         <div>
                             <label className="block text-xs text-gray-500 mb-1">Condición</label>
-                            <select
-                                value={editExtraCondicion}
-                                onChange={(e) => setEditExtraCondicion(e.target.value)}
-                                className="w-full text-sm border p-1 rounded"
-                            >
-                                <option value="">-- Seleccionar --</option>
-                                {CONDICIONES_EXTRAORDINARIAS.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
+                            {request.tipo_anexo === TipoAnexo.ANEXO_VIII_B ? (
+                                <input 
+                                    type="text" 
+                                    value="FEOE durante el mes de julio" 
+                                    disabled 
+                                    className="w-full text-sm border p-1 rounded bg-gray-100 text-gray-600"
+                                />
+                            ) : (
+                                <select
+                                    value={editExtraCondicion}
+                                    onChange={(e) => setEditExtraCondicion(e.target.value)}
+                                    className="w-full text-sm border p-1 rounded"
+                                >
+                                    <option value="">-- Seleccionar --</option>
+                                    {CONDICIONES_EXTRAORDINARIAS.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            )}
                         </div>
                         <div>
                             <label className="block text-xs text-gray-500 mb-1">Justificación</label>
@@ -672,7 +830,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
                                  <input type="file" className="hidden" onChange={(e) => handleAddNewFile(e, 'CONVENIO')} />
                              </label>
                          )}
-                         {request.tipo_anexo === TipoAnexo.ANEXO_VIII_A && (
+                         {isAnexoVIII && (
                              <label className="cursor-pointer bg-orange-50 hover:bg-orange-100 text-orange-700 px-3 py-1 rounded text-xs flex items-center border border-orange-200">
                                  + Convenio
                                  <input type="file" className="hidden" onChange={(e) => handleAddNewFile(e, 'CONVENIO')} />
@@ -688,8 +846,61 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
             )}
           </section>
 
+          <div className="border-t pt-4 mt-6">
+                <p className="text-sm text-gray-600 font-medium">Firmado por el Director:</p>
+                <div className="flex items-center mt-2 text-gray-800 bg-gray-100 p-2 rounded w-fit px-4 border border-gray-300">
+                    <PenTool className="h-4 w-4 mr-2 text-gray-500" />
+                    <span className="font-bold">{centro?.nombre_director || "Director/a del Centro"}</span>
+                </div>
+           </div>
+
+          {/* FIRMAS / TRAZABILIDAD SECTION */}
+          <section className="border-t pt-4 mt-4">
+              <div className="flex items-center mb-3">
+                  <ClipboardSignature className="h-5 w-5 text-gray-400 mr-2" />
+                  <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Firmas y Trazabilidad</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Creación */}
+                  {(() => {
+                      const sig = getSignatureAction('CREATION');
+                      return sig ? (
+                          <div className="bg-gray-50 p-3 rounded border border-gray-200 shadow-sm">
+                              <p className="text-xs text-gray-500 font-bold uppercase mb-1">Solicitud</p>
+                              <p className="text-sm text-gray-800 font-medium">{sig.text}</p>
+                              <p className="text-xs text-gray-400 mt-1">{sig.date}</p>
+                          </div>
+                      ) : null;
+                  })()}
+                  
+                  {/* Inspección */}
+                   {(() => {
+                      const sig = getSignatureAction('INSPECTION');
+                      return sig ? (
+                          <div className="bg-blue-50 p-3 rounded border border-blue-200 shadow-sm">
+                              <p className="text-xs text-blue-500 font-bold uppercase mb-1">Informe Inspección</p>
+                              <p className="text-sm text-blue-900 font-medium">{sig.text}</p>
+                              <p className="text-xs text-blue-400 mt-1">{sig.date}</p>
+                          </div>
+                      ) : null;
+                  })()}
+
+                  {/* Resolución */}
+                   {(() => {
+                      const sig = getSignatureAction('RESOLUTION');
+                      return sig ? (
+                          <div className="bg-green-50 p-3 rounded border border-green-200 shadow-sm">
+                              <p className="text-xs text-green-600 font-bold uppercase mb-1">Resolución</p>
+                              <p className="text-sm text-green-900 font-medium">{sig.text}</p>
+                              <p className="text-xs text-green-500 mt-1">{sig.date}</p>
+                          </div>
+                      ) : null;
+                  })()}
+              </div>
+          </section>
+
           {/* Timeline */}
-          <section className="border-t pt-4">
+          <section className="border-t pt-4 mt-4">
                <div className="flex items-center mb-4"><History className="h-5 w-5 text-gray-400 mr-2" /><h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Historial</h3></div>
                <div className="relative border-l-2 border-gray-200 ml-3 space-y-6 pb-2">
                  {request.historial?.map((entry, idx) => (
@@ -716,6 +927,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
                    <button onClick={() => handleInspection(true)} className="flex-1 bg-green-600 text-white py-2 rounded text-sm">Favorable</button>
                    <button onClick={() => handleInspection(false)} className="flex-1 bg-red-600 text-white py-2 rounded text-sm">Desfavorable</button>
                  </div>
+                 <p className="text-xs text-gray-500 text-center italic">Ambas acciones envían la solicitud a Resolución.</p>
                </div>
              )}
 
@@ -730,7 +942,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
              )}
              
              {isDirector && request.estado === Estado.BORRADOR && (
-                 <button onClick={() => { onUpdate(request.id, { estado: Estado.PENDIENTE_INSPECCION, historial: [...request.historial, createHistoryEntry("Envío a Inspección", Estado.PENDIENTE_INSPECCION)] }); onClose(); }} className="w-full bg-blue-600 text-white py-2 rounded text-sm flex justify-center items-center"><Send className="h-4 w-4 mr-2" /> Enviar a Inspección</button>
+                 <button onClick={() => { onUpdate(request.id, { estado: Estado.PENDIENTE_RESOLUCION, historial: [...request.historial, createHistoryEntry("Envío a Inspección", Estado.PENDIENTE_RESOLUCION)] }); onClose(); }} className="w-full bg-blue-600 text-white py-2 rounded text-sm flex justify-center items-center"><Send className="h-4 w-4 mr-2" /> Enviar</button>
              )}
 
              {isSuperUser && (

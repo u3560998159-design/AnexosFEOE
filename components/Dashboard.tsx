@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Solicitud, Usuario, Rol, Estado, TipoAnexo, Centro, Alumno } from '../types';
-import { Plus, Eye, Clock, ArrowUpDown, ArrowUp, ArrowDown, Search } from 'lucide-react';
+import { getResolverRole } from '../constants';
+import { Plus, Eye, Clock, ArrowUpDown, ArrowUp, ArrowDown, Search, AlertTriangle } from 'lucide-react';
 
 interface DashboardProps {
   user: Usuario;
@@ -35,6 +36,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
     return alumnos.filter(a => ids.includes(a.dni)).map(a => `${a.nombre} ${a.apellidos}`).join(', ');
   };
 
+  // Helper para detectar si es "Antigua" (más de 10 días desde el último cambio)
+  const isStaleRequest = (req: Solicitud) => {
+      // Si está resuelta (finalizada), no aplicamos la alerta de retraso
+      if (req.estado === Estado.RESUELTA_POSITIVA || req.estado === Estado.RESUELTA_NEGATIVA) return false;
+
+      // Obtenemos la fecha del último movimiento del historial o la de creación
+      const lastEntry = req.historial.length > 0 ? req.historial[req.historial.length - 1] : null;
+      const dateString = lastEntry ? lastEntry.fecha : req.fecha_creacion;
+      
+      const lastDate = new Date(dateString);
+      const now = new Date();
+      const diffTime = Math.abs(now.getTime() - lastDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+      
+      return diffDays > 10;
+  };
+
   const handleSort = (key: SortKey) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -54,21 +72,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
   const processedRequests = useMemo(() => {
     let result = requests.filter(req => {
       const centro = getCentro(req.codigo_centro);
-      // Si el centro no existe (borrado), mostramos la solicitud pero sin datos de centro
       
       // 1. Permisos por Rol
       if (user.rol === Rol.DIRECTOR) {
         if (req.codigo_centro !== user.codigo_centro) return false;
       }
       
-      if (user.rol === Rol.INSPECTOR && centro) {
-        if (centro.provincia !== user.provincia) return false;
+      if (user.rol === Rol.INSPECTOR) {
+        if (centro?.provincia !== user.provincia) return false;
+        // Inspectores solo ven Anexos VIII (que son los que inspeccionan) o podrían ver todos para info, 
+        // pero la acción es sobre los VIII. Por ahora mostramos todos los de la provincia.
       }
 
-      if (user.rol === Rol.DELEGADO && centro) {
-        if (centro.provincia !== user.provincia) return false;
-        const isDelegadoType = req.tipo_anexo === TipoAnexo.ANEXO_IV_A || req.tipo_anexo === TipoAnexo.ANEXO_VIII_A;
-        if (!isDelegadoType) return false;
+      if (user.rol === Rol.DELEGADO) {
+        if (centro?.provincia !== user.provincia) return false;
       }
 
       // 2. Filtros de Columna (Selects y Textos)
@@ -126,14 +143,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
 
   const pendingCount = processedRequests.filter(r => {
     if (user.rol === Rol.INSPECTOR) return r.estado === Estado.PENDIENTE_INSPECCION;
-    if (user.rol === Rol.DG || user.rol === Rol.DELEGADO) return r.estado === Estado.PENDIENTE_RESOLUCION;
+    
+    if (user.rol === Rol.DG) {
+        // DG resuelve I, II, IV_B, V, VIII-B, XIII
+        if (r.estado !== Estado.PENDIENTE_RESOLUCION) return false;
+        return getResolverRole(r.tipo_anexo) === Rol.DG;
+    }
+    
+    if (user.rol === Rol.DELEGADO) {
+        // Delegado resuelve IV_A y VIII-A
+        if (r.estado !== Estado.PENDIENTE_RESOLUCION) return false;
+        return getResolverRole(r.tipo_anexo) === Rol.DELEGADO;
+    }
     return false;
   }).length;
 
   const getStatusBadge = (estado: Estado) => {
     const styles = {
       [Estado.BORRADOR]: "bg-gray-100 text-gray-800",
-      [Estado.CREADA]: "bg-blue-100 text-blue-800",
       [Estado.PENDIENTE_INSPECCION]: "bg-yellow-100 text-yellow-800",
       [Estado.PENDIENTE_RESOLUCION]: "bg-purple-100 text-purple-800",
       [Estado.RESUELTA_POSITIVA]: "bg-green-100 text-green-800",
@@ -274,11 +301,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
             ) : (
               processedRequests.map((req) => {
                 const centro = getCentro(req.codigo_centro);
+                const isStale = isStaleRequest(req);
                 return (
-                  <tr key={req.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={req.id} className={`hover:bg-gray-50 transition-colors ${isStale ? 'bg-red-50 border-l-4 border-red-500' : ''}`}>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm font-medium text-rayuela-700">{req.id}</div>
-                      <div className="text-xs text-gray-500">{req.fecha_creacion}</div>
+                      <div className="flex items-center">
+                          {isStale && <AlertTriangle className="h-4 w-4 text-red-500 mr-2" title="Solicitud parada (+10 días)" />}
+                          <div>
+                            <div className="text-sm font-medium text-rayuela-700">{req.id}</div>
+                            <div className="text-xs text-gray-500">{req.fecha_creacion}</div>
+                          </div>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">{centro?.nombre || 'Desconocido'}</div>
@@ -305,6 +338,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(req.estado)}
+                      {isStale && <p className="text-[10px] text-red-600 font-bold mt-1">Revisión atrasada</p>}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button 

@@ -1,15 +1,16 @@
 import React from 'react';
 import { Usuario, Rol } from '../types';
-import { LogOut, User, Menu, BookOpen, Database } from 'lucide-react';
+import { LogOut, User, Menu, BookOpen, Database, Bell } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
   user: Usuario | null;
   onLogout: () => void;
   onNavigate: (view: any) => void;
+  pendingCount?: number; // Nuevo prop para notificaciones
 }
 
-export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onNavigate }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onNavigate, pendingCount = 0 }) => {
   if (!user) return <>{children}</>;
 
   const canManageData = user.rol === Rol.SUPERUSER || user.rol === Rol.DG || user.rol === Rol.DIRECTOR;
@@ -87,13 +88,33 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onNavi
         {/* Header */}
         <header className="bg-white shadow-sm h-16 flex items-center justify-between px-6 z-10 border-b border-gray-200">
           <h1 className="text-xl font-semibold text-gray-800">Gestión de Anexos - Instrucción 34/2025</h1>
-          <button 
-            onClick={onLogout}
-            className="flex items-center text-sm text-gray-600 hover:text-red-600 transition-colors"
-          >
-            <LogOut className="h-4 w-4 mr-1" />
-            Cerrar Sesión
-          </button>
+          
+          <div className="flex items-center space-x-4">
+             {/* Notificaciones */}
+             <div className="relative group cursor-pointer" title="Solicitudes pendientes de revisar">
+                <Bell className="h-6 w-6 text-gray-500 group-hover:text-rayuela-700 transition-colors" />
+                {pendingCount > 0 && (
+                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold h-4 w-4 rounded-full flex items-center justify-center">
+                        {pendingCount}
+                    </span>
+                )}
+                {pendingCount > 0 && (
+                    <div className="absolute right-0 top-full mt-2 w-64 bg-white border border-gray-200 shadow-lg rounded-md p-3 hidden group-hover:block z-50">
+                        <p className="text-sm text-gray-700 font-medium">Tiene {pendingCount} Solicitudes pendientes de revisar.</p>
+                    </div>
+                )}
+             </div>
+
+             <div className="h-6 w-px bg-gray-300 mx-2"></div>
+
+             <button 
+                onClick={onLogout}
+                className="flex items-center text-sm text-gray-600 hover:text-red-600 transition-colors"
+             >
+                <LogOut className="h-4 w-4 mr-1" />
+                Cerrar Sesión
+             </button>
+          </div>
         </header>
 
         {/* Page Content */}

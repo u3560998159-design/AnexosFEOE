@@ -8,7 +8,6 @@ export enum Rol {
 
 export enum Estado {
   BORRADOR = 'BORRADOR',
-  CREADA = 'CREADA', // Enviada por el centro
   PENDIENTE_INSPECCION = 'PENDIENTE_INSPECCION',
   PENDIENTE_RESOLUCION = 'PENDIENTE_RESOLUCION',
   RESUELTA_POSITIVA = 'RESUELTA_POSITIVA',
@@ -16,15 +15,15 @@ export enum Estado {
 }
 
 export enum TipoAnexo {
-  ANEXO_I = 'Anexo I (Curso único)',
-  ANEXO_II = 'Anexo II (Intensivo)',
-  ANEXO_IV_A = 'Anexo IV-A (Org. Público)',
-  ANEXO_IV_B = 'Anexo IV-B (Centro Educativo)',
-  ANEXO_V = 'Anexo V - Solicitud de dualización',
+  ANEXO_I = 'Anexo I - Solicitud de autorización de FEOE en curso único',
+  ANEXO_II = 'Anexo II - Solicitud de autorización de FEOE en periodo intensivo',
+  ANEXO_IV_A = 'Anexo IV-A - Solicitud de FEOE en Organismo Público',
+  ANEXO_IV_B = 'Anexo IV-B - Solicitud de FEOE en el propio Centro Educativo',
+  ANEXO_V = 'Anexo V - Solicitud de dualización de Ciclos Formativos',
   ANEXO_VIII_A = 'Anexo VIII-A - Solicitud condiciones extraordinarias',
-  ANEXO_VIII_B = 'Anexo VIII-B (Julio)',
-  ANEXO_IX = 'Anexo IX (Exención)',
-  ANEXO_XIII = 'Anexo XIII (NEE)'
+  ANEXO_VIII_B = 'Anexo VIII-B Condiciones Extraordinarias mes de Julio',
+  // ANEXO_IX eliminado
+  ANEXO_XIII = 'Anexo XIII - Solicitud de adaptación de periodo FEOE con alumnos NEFE'
 }
 
 export interface Centro {
@@ -32,6 +31,7 @@ export interface Centro {
   nombre: string;
   localidad: string;
   provincia: 'Badajoz' | 'Cáceres';
+  nombre_director?: string; // Nuevo campo
 }
 
 export interface Alumno {
@@ -80,7 +80,7 @@ export interface Solicitud {
   // Campos específicos Anexo I
   motivo?: string;
   motivo_otros?: string;
-  // Campos específicos Anexo II
+  // Campos específicos Anexo II y XIII
   feoe_inicio?: string;
   feoe_fin?: string;
   // Campos específicos Anexo IV-A
@@ -91,7 +91,7 @@ export interface Solicitud {
   centro_destino_codigo?: string;
   // Campos específicos Anexo V
   curso_dual?: string;
-  // Campos específicos Anexo VIII-A
+  // Campos específicos Anexo VIII-A y VIII-B
   condicion_extraordinaria?: string;
   justificacion_extraordinaria?: string;
   empresa_nombre?: string;
@@ -99,6 +99,8 @@ export interface Solicitud {
   empresa_provincia?: string;
   empresa_direccion_extranjera?: string;
   tutor_empresa?: string;
+  // Campos específicos Anexo XIII
+  justificacion_nefe?: string;
   // Campos de observaciones/resolución
   observaciones_inspeccion?: string;
   observaciones_resolucion?: string;

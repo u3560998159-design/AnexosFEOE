@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Usuario, TipoAnexo, Estado, Solicitud, HistorialEntrada, Alumno, Documento, Centro } from '../types';
-import { Save, ArrowLeft, Upload, AlertCircle, FileText, Trash2, Eye, Calendar, UserPlus, Building2, School, GraduationCap, Globe } from 'lucide-react';
+import { Save, ArrowLeft, Upload, AlertCircle, FileText, Trash2, Eye, Calendar, UserPlus, Building2, School, GraduationCap, Globe, PenTool, Search } from 'lucide-react';
 
 interface RequestFormProps {
   user: Usuario;
@@ -50,12 +50,15 @@ const PROVINCIAS = [
 
 interface TempFile {
   file: File;
-  type?: string; // Para Anexo II, IV-A, VIII-A
+  type?: string; // Para Anexo II, IV-A, VIII-A, VIII-B
 }
 
 export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros, onClose, onSubmit }) => {
   const [tipo, setTipo] = useState<TipoAnexo>(TipoAnexo.ANEXO_I);
   const [selectedAlumnos, setSelectedAlumnos] = useState<string[]>([]);
+  
+  // Buscador de alumnos
+  const [studentSearchTerm, setStudentSearchTerm] = useState('');
   
   // Archivos
   const [files, setFiles] = useState<TempFile[]>([]);
@@ -67,7 +70,7 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
   const [motivo, setMotivo] = useState<string>('');
   const [motivoOtros, setMotivoOtros] = useState<string>('');
 
-  // Estados Anexo II
+  // Estados Anexo II y XIII (Fechas)
   const [feoeInicio, setFeoeInicio] = useState('');
   const [feoeFin, setFeoeFin] = useState('');
 
@@ -82,7 +85,7 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
   // Estados Anexo V
   const [cursoDual, setCursoDual] = useState('');
 
-  // Estados Anexo VIII-A
+  // Estados Anexo VIII-A y VIII-B
   const [extraCondicion, setExtraCondicion] = useState('');
   const [extraJustificacion, setExtraJustificacion] = useState('');
   const [empresaNombre, setEmpresaNombre] = useState('');
@@ -91,13 +94,25 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
   const [empresaDireccion, setEmpresaDireccion] = useState('');
   const [tutorEmpresa, setTutorEmpresa] = useState('');
 
+  // Estados Anexo XIII
+  const [nefeJustificacion, setNefeJustificacion] = useState('');
 
+  const currentCentro = centros.find(c => c.codigo === user.codigo_centro);
   const centerAlumnos = alumnos.filter(a => a.codigo_centro === user.codigo_centro);
-  const availableToAdd = centerAlumnos.filter(a => !selectedAlumnos.includes(a.dni));
+  
+  // Filtrado de alumnos para el buscador
+  const availableToAdd = centerAlumnos
+    .filter(a => !selectedAlumnos.includes(a.dni))
+    .filter(a => {
+        if(!studentSearchTerm) return true;
+        const search = studentSearchTerm.toLowerCase();
+        return a.nombre.toLowerCase().includes(search) || a.apellidos.toLowerCase().includes(search);
+    });
 
   const handleAddAlumno = (dni: string) => {
     if (dni && !selectedAlumnos.includes(dni)) {
       setSelectedAlumnos([...selectedAlumnos, dni]);
+      setStudentSearchTerm(''); // Limpiar búsqueda
     }
   };
 
@@ -141,23 +156,31 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
       }
     }
 
-    // Validación Anexo II
-    if (tipo === TipoAnexo.ANEXO_II) {
+    // Validación Anexo II y XIII (Fechas)
+    if (tipo === TipoAnexo.ANEXO_II || tipo === TipoAnexo.ANEXO_XIII) {
        if (!feoeInicio || !feoeFin) {
-           setError("Para el Anexo II es obligatorio especificar el periodo de FEOE.");
+           setError("Es obligatorio especificar el periodo de FEOE.");
            return;
        }
        if (feoeInicio > feoeFin) {
            setError("La fecha de inicio no puede ser posterior a la fecha de fin.");
            return;
        }
-       const hasPlan = files.some(f => f.type === 'PLAN');
-       const hasConvenio = files.some(f => f.type === 'CONVENIO');
-       
-       if (!hasPlan || !hasConvenio) {
-           setError("Para el Anexo II es obligatorio subir: 1. Plan individual de formación y 2. Convenio con la empresa.");
-           return;
+       if (tipo === TipoAnexo.ANEXO_II) {
+           const hasPlan = files.some(f => f.type === 'PLAN');
+           const hasConvenio = files.some(f => f.type === 'CONVENIO');
+           if (!hasPlan || !hasConvenio) {
+               setError("Para el Anexo II es obligatorio subir: 1. Plan individual de formación y 2. Convenio con la empresa.");
+               return;
+           }
        }
+       // Anexo XIII validaciones extra
+        if (tipo === TipoAnexo.ANEXO_XIII) {
+             if(!nefeJustificacion.trim()) {
+                 setError("Para el Anexo XIII es obligatorio incluir una justificación.");
+                 return;
+             }
+        }
     }
 
     // Validación Anexo IV-A
@@ -192,7 +215,6 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
             setError("Debe seleccionar un Centro de Trabajo (Educativo) de destino.");
             return;
         }
-        // No se requiere archivo
     }
 
     // Validación Anexo V
@@ -201,19 +223,19 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
             setError("Debe seleccionar el Ciclo Formativo para la dualización.");
             return;
         }
-        // No se requiere archivo
     }
 
-    // Validación Anexo VIII-A
-    if (tipo === TipoAnexo.ANEXO_VIII_A) {
+    // Validación Anexo VIII-A y VIII-B
+    if (tipo === TipoAnexo.ANEXO_VIII_A || tipo === TipoAnexo.ANEXO_VIII_B) {
         if (!extraCondicion) {
             setError("Debe seleccionar una condición extraordinaria.");
             return;
         }
-        if (extraCondicion === 'Otros supuestos que se determinen' && !extraJustificacion.trim()) {
+        if (tipo === TipoAnexo.ANEXO_VIII_A && extraCondicion === 'Otros supuestos que se determinen' && !extraJustificacion.trim()) {
             setError("Debe justificar la condición extraordinaria si selecciona 'Otros'.");
             return;
         }
+
         if (!empresaNombre.trim()) { setError("El nombre de la empresa es obligatorio."); return; }
         if (!empresaLocalidad.trim()) { setError("La localidad de la empresa es obligatoria."); return; }
         if (!empresaProvincia) { setError("La provincia es obligatoria."); return; }
@@ -222,12 +244,25 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
 
         const hasConvenio = files.some(f => f.type === 'CONVENIO');
         if (!hasConvenio) {
-            setError("Para el Anexo VIII-A es obligatorio subir el Convenio.");
+            setError(`Para el ${tipo} es obligatorio subir el Convenio.`);
             return;
         }
     }
 
-    const initialStatus = tipo === TipoAnexo.ANEXO_IX ? Estado.RESUELTA_POSITIVA : Estado.PENDIENTE_INSPECCION;
+    // Lógica de estado inicial según Anexo
+    // REGLA: I, VIII-A, VIII-B y XIII requieren informe de inspección.
+    // Resto (II, IV-A, IV-B, V) van directos a Resolución.
+    
+    let initialStatus = Estado.PENDIENTE_RESOLUCION;
+    
+    if (
+        tipo === TipoAnexo.ANEXO_I || 
+        tipo === TipoAnexo.ANEXO_VIII_A || 
+        tipo === TipoAnexo.ANEXO_VIII_B || 
+        tipo === TipoAnexo.ANEXO_XIII
+    ) {
+        initialStatus = Estado.PENDIENTE_INSPECCION;
+    }
 
     // Crear entrada inicial del historial
     const historialInicial: HistorialEntrada[] = [
@@ -235,7 +270,7 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
         fecha: new Date().toISOString(),
         autor: user.nombre,
         rol: user.rol,
-        accion: tipo === TipoAnexo.ANEXO_IX ? "Creación y Resolución Automática" : "Creación y Envío",
+        accion: "Creación y Envío",
         estado_nuevo: initialStatus
       }
     ];
@@ -256,26 +291,29 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
       historial: historialInicial,
       motivo: tipo === TipoAnexo.ANEXO_I ? motivo : undefined,
       motivo_otros: (tipo === TipoAnexo.ANEXO_I && motivo === 'Otros') ? motivoOtros : undefined,
-      feoe_inicio: tipo === TipoAnexo.ANEXO_II ? feoeInicio : undefined,
-      feoe_fin: tipo === TipoAnexo.ANEXO_II ? feoeFin : undefined,
+      feoe_inicio: (tipo === TipoAnexo.ANEXO_II || tipo === TipoAnexo.ANEXO_XIII) ? feoeInicio : undefined,
+      feoe_fin: (tipo === TipoAnexo.ANEXO_II || tipo === TipoAnexo.ANEXO_XIII) ? feoeFin : undefined,
       numero_convenio: tipo === TipoAnexo.ANEXO_IV_A ? numeroConvenio : undefined,
       organismo_publico: tipo === TipoAnexo.ANEXO_IV_A ? organismoPublico : undefined,
       tutor_dual_destino: tipo === TipoAnexo.ANEXO_IV_B ? tutorDestino : undefined,
       centro_destino_codigo: tipo === TipoAnexo.ANEXO_IV_B ? centroDestino : undefined,
       curso_dual: tipo === TipoAnexo.ANEXO_V ? cursoDual : undefined,
-      condicion_extraordinaria: tipo === TipoAnexo.ANEXO_VIII_A ? extraCondicion : undefined,
-      justificacion_extraordinaria: tipo === TipoAnexo.ANEXO_VIII_A ? extraJustificacion : undefined,
-      empresa_nombre: tipo === TipoAnexo.ANEXO_VIII_A ? empresaNombre : undefined,
-      empresa_localidad: tipo === TipoAnexo.ANEXO_VIII_A ? empresaLocalidad : undefined,
-      empresa_provincia: tipo === TipoAnexo.ANEXO_VIII_A ? empresaProvincia : undefined,
-      empresa_direccion_extranjera: (tipo === TipoAnexo.ANEXO_VIII_A && empresaProvincia === 'Extranjero') ? empresaDireccion : undefined,
-      tutor_empresa: tipo === TipoAnexo.ANEXO_VIII_A ? tutorEmpresa : undefined,
+      condicion_extraordinaria: (tipo === TipoAnexo.ANEXO_VIII_A || tipo === TipoAnexo.ANEXO_VIII_B) ? extraCondicion : undefined,
+      justificacion_extraordinaria: (tipo === TipoAnexo.ANEXO_VIII_A || tipo === TipoAnexo.ANEXO_VIII_B) ? extraJustificacion : undefined,
+      empresa_nombre: (tipo === TipoAnexo.ANEXO_VIII_A || tipo === TipoAnexo.ANEXO_VIII_B) ? empresaNombre : undefined,
+      empresa_localidad: (tipo === TipoAnexo.ANEXO_VIII_A || tipo === TipoAnexo.ANEXO_VIII_B) ? empresaLocalidad : undefined,
+      empresa_provincia: (tipo === TipoAnexo.ANEXO_VIII_A || tipo === TipoAnexo.ANEXO_VIII_B) ? empresaProvincia : undefined,
+      empresa_direccion_extranjera: ((tipo === TipoAnexo.ANEXO_VIII_A || tipo === TipoAnexo.ANEXO_VIII_B) && empresaProvincia === 'Extranjero') ? empresaDireccion : undefined,
+      tutor_empresa: (tipo === TipoAnexo.ANEXO_VIII_A || tipo === TipoAnexo.ANEXO_VIII_B) ? tutorEmpresa : undefined,
+      justificacion_nefe: tipo === TipoAnexo.ANEXO_XIII ? nefeJustificacion : undefined,
     };
 
+    window.alert("Solicitud creada y enviada correctamente.");
     onSubmit(newRequest);
   };
 
   const showFileUpload = tipo !== TipoAnexo.ANEXO_IV_B && tipo !== TipoAnexo.ANEXO_V;
+  const isAnexoVIII = tipo === TipoAnexo.ANEXO_VIII_A || tipo === TipoAnexo.ANEXO_VIII_B;
 
   return (
     <div className="bg-white shadow-lg rounded-lg border border-gray-200 p-6 max-w-4xl mx-auto">
@@ -300,15 +338,22 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
           <select 
             value={tipo}
             onChange={(e) => {
-              setTipo(e.target.value as TipoAnexo);
+              const newTipo = e.target.value as TipoAnexo;
+              setTipo(newTipo);
               // Resetear campos
               setMotivo(''); setMotivoOtros(''); setFiles([]); setFeoeInicio(''); setFeoeFin('');
               setNumeroConvenio(''); setOrganismoPublico('');
               setTutorDestino(''); setCentroDestino('');
               setCursoDual('');
               setExtraCondicion(''); setExtraJustificacion(''); setEmpresaNombre(''); setEmpresaLocalidad(''); setEmpresaProvincia(''); setEmpresaDireccion(''); setTutorEmpresa('');
+              setNefeJustificacion('');
+              
+              // Setear condición fija para VIII-B
+              if (newTipo === TipoAnexo.ANEXO_VIII_B) {
+                  setExtraCondicion("FEOE durante el mes de julio");
+              }
             }}
-            className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-rayuela-500 focus:border-rayuela-500 border p-2"
+            className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-rayuela-500 focus:border-rayuela-500 border p-2 text-sm" // Añadido text-sm para reducir tamaño si los nombres son largos
           >
             {Object.values(TipoAnexo).map(t => (
               <option key={t} value={t}>{t}</option>
@@ -316,6 +361,10 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
           </select>
         </div>
 
+        {/* ... (Rest of fields - no changes logic here, just pass through) ... */}
+        {/* Note: I'm keeping the exact same structure for fields from previous turns to avoid huge XML, 
+            only replacing Student Selection below */}
+            
         {/* ANEXO I Fields */}
         {tipo === TipoAnexo.ANEXO_I && (
           <div className="bg-blue-50 p-4 rounded-md border border-blue-100 space-y-4">
@@ -349,10 +398,12 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
           </div>
         )}
 
-        {/* ANEXO II Fields */}
-        {tipo === TipoAnexo.ANEXO_II && (
-          <div className="bg-purple-50 p-4 rounded-md border border-purple-100 space-y-4">
-            <h3 className="text-sm font-bold text-purple-800">Detalles Anexo II (Intensivo)</h3>
+        {/* ANEXO II & XIII Fields (Fechas) */}
+        {(tipo === TipoAnexo.ANEXO_II || tipo === TipoAnexo.ANEXO_XIII) && (
+          <div className={`${tipo === TipoAnexo.ANEXO_II ? 'bg-purple-50 border-purple-100' : 'bg-pink-50 border-pink-100'} p-4 rounded-md border space-y-4`}>
+            <h3 className={`text-sm font-bold ${tipo === TipoAnexo.ANEXO_II ? 'text-purple-800' : 'text-pink-800'}`}>
+                {tipo === TipoAnexo.ANEXO_II ? "Detalles Anexo II (Intensivo)" : "Detalles Anexo XIII (NEFE)"}
+            </h3>
             
             <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -362,7 +413,7 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
                           type="date" 
                           value={feoeInicio}
                           onChange={(e) => setFeoeInicio(e.target.value)}
-                          className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 border p-2 text-sm pl-10"
+                          className={`block w-full border-gray-300 rounded-md shadow-sm border p-2 text-sm pl-10 ${tipo === TipoAnexo.ANEXO_II ? 'focus:ring-purple-500 focus:border-purple-500' : 'focus:ring-pink-500 focus:border-pink-500'}`}
                         />
                         <Calendar className="h-4 w-4 text-gray-400 absolute left-3 top-2.5" />
                     </div>
@@ -374,12 +425,25 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
                           type="date" 
                           value={feoeFin}
                           onChange={(e) => setFeoeFin(e.target.value)}
-                          className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500 border p-2 text-sm pl-10"
+                          className={`block w-full border-gray-300 rounded-md shadow-sm border p-2 text-sm pl-10 ${tipo === TipoAnexo.ANEXO_II ? 'focus:ring-purple-500 focus:border-purple-500' : 'focus:ring-pink-500 focus:border-pink-500'}`}
                         />
                         <Calendar className="h-4 w-4 text-gray-400 absolute left-3 top-2.5" />
                     </div>
                 </div>
             </div>
+
+            {/* Justificación Específica para Anexo XIII */}
+            {tipo === TipoAnexo.ANEXO_XIII && (
+                 <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Justificación de la adaptación <span className="text-red-500">*</span></label>
+                    <textarea 
+                        value={nefeJustificacion}
+                        onChange={(e) => setNefeJustificacion(e.target.value)}
+                        className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500 border p-2 text-sm h-32"
+                        placeholder="Explique las necesidades educativas y la adaptación requerida..."
+                    />
+                 </div>
+            )}
           </div>
         )}
 
@@ -517,30 +581,39 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
           </div>
         )}
 
-        {/* ANEXO VIII-A Fields */}
-        {tipo === TipoAnexo.ANEXO_VIII_A && (
+        {/* ANEXO VIII-A y VIII-B Fields */}
+        {isAnexoVIII && (
           <div className="bg-orange-50 p-4 rounded-md border border-orange-100 space-y-4">
              <h3 className="text-sm font-bold text-orange-800 flex items-center">
                 <Globe className="h-4 w-4 mr-2" />
-                Condiciones Extraordinarias
+                {tipo === TipoAnexo.ANEXO_VIII_B ? "Detalles Anexo VIII-B (Mes de Julio)" : "Condiciones Extraordinarias"}
             </h3>
 
             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de Condición <span className="text-red-500">*</span></label>
-                <select
-                    value={extraCondicion}
-                    onChange={(e) => setExtraCondicion(e.target.value)}
-                    className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500 border p-2 text-sm"
-                >
-                    <option value="">-- Seleccione una condición --</option>
-                    {CONDICIONES_EXTRAORDINARIAS.map(c => (
-                        <option key={c} value={c}>{c}</option>
-                    ))}
-                </select>
+                {tipo === TipoAnexo.ANEXO_VIII_B ? (
+                     <input 
+                        type="text" 
+                        value="FEOE durante el mes de julio" 
+                        disabled 
+                        className="block w-full border-gray-300 rounded-md bg-gray-100 text-gray-600 border p-2 text-sm"
+                     />
+                ) : (
+                    <select
+                        value={extraCondicion}
+                        onChange={(e) => setExtraCondicion(e.target.value)}
+                        className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-orange-500 focus:border-orange-500 border p-2 text-sm"
+                    >
+                        <option value="">-- Seleccione una condición --</option>
+                        {CONDICIONES_EXTRAORDINARIAS.map(c => (
+                            <option key={c} value={c}>{c}</option>
+                        ))}
+                    </select>
+                )}
             </div>
 
             <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Justificación <span className="text-xs font-normal text-gray-500">(Obligatorio si selecciona 'Otros')</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Justificación <span className="text-xs font-normal text-gray-500">{tipo === TipoAnexo.ANEXO_VIII_A && "(Obligatorio si selecciona 'Otros')"}</span></label>
                 <textarea
                     value={extraJustificacion}
                     onChange={(e) => setExtraJustificacion(e.target.value)}
@@ -610,35 +683,47 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
           </div>
         )}
 
-        {/* Student Selection */}
+        {/* Student Selection (MEJORADO CON BÚSQUEDA) */}
         {tipo !== TipoAnexo.ANEXO_V && (
           <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
             <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar Alumnos</label>
             
-            {/* Dropdown de Añadir */}
-            <div className="flex gap-2 mb-4">
-               <div className="relative flex-1">
-                 <select
-                   className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-rayuela-500 focus:border-rayuela-500 border p-2 pl-3 text-sm"
-                   defaultValue=""
-                   onChange={(e) => {
-                     if (e.target.value) {
-                       handleAddAlumno(e.target.value);
-                       e.target.value = "";
-                     }
-                   }}
-                 >
-                   <option value="" disabled>-- Seleccione un alumno para añadir --</option>
-                   {availableToAdd.map(alumno => (
-                     <option key={alumno.dni} value={alumno.dni}>
-                       {alumno.apellidos}, {alumno.nombre} ({alumno.curso})
-                     </option>
-                   ))}
-                   {availableToAdd.length === 0 && (
-                     <option disabled>No quedan alumnos disponibles</option>
-                   )}
-                 </select>
-               </div>
+            {/* Buscador de Alumnos */}
+            <div className="relative mb-4">
+                <div className="flex items-center border border-gray-300 rounded-md bg-white overflow-hidden focus-within:ring-2 focus-within:ring-rayuela-500">
+                    <div className="pl-3 text-gray-400">
+                        <Search className="h-4 w-4" />
+                    </div>
+                    <input 
+                        type="text" 
+                        value={studentSearchTerm}
+                        onChange={(e) => setStudentSearchTerm(e.target.value)}
+                        placeholder="Buscar por nombre o apellidos para añadir..."
+                        className="w-full p-2 text-sm focus:outline-none"
+                    />
+                </div>
+                
+                {/* Lista de resultados filtrados */}
+                {studentSearchTerm && availableToAdd.length > 0 && (
+                    <div className="absolute z-10 w-full bg-white shadow-lg border border-gray-200 rounded-md mt-1 max-h-48 overflow-y-auto">
+                        {availableToAdd.map(alumno => (
+                            <button
+                                key={alumno.dni}
+                                type="button"
+                                onClick={() => handleAddAlumno(alumno.dni)}
+                                className="w-full text-left px-4 py-2 text-sm hover:bg-rayuela-50 transition-colors border-b border-gray-100 last:border-0"
+                            >
+                                <span className="font-bold text-gray-800">{alumno.apellidos}, {alumno.nombre}</span>
+                                <span className="ml-2 text-gray-500 text-xs">({alumno.curso}) - {alumno.dni}</span>
+                            </button>
+                        ))}
+                    </div>
+                )}
+                 {studentSearchTerm && availableToAdd.length === 0 && (
+                    <div className="absolute z-10 w-full bg-white shadow-lg border border-gray-200 rounded-md mt-1 p-2 text-center text-sm text-gray-500">
+                        No se encontraron alumnos disponibles con ese nombre.
+                    </div>
+                )}
             </div>
 
             {/* Lista de Seleccionados */}
@@ -684,7 +769,7 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
           </div>
         )}
 
-        {/* File Upload Section - Only for types that require it */}
+        {/* ... (File Upload & Submit Buttons - No logic changes, just passing through) ... */}
         {showFileUpload && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Documentación Adjunta</label>
@@ -708,13 +793,13 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
                     </div>
                 </div>
              </div>
-          ) : tipo === TipoAnexo.ANEXO_IV_A || tipo === TipoAnexo.ANEXO_VIII_A ? (
+          ) : tipo === TipoAnexo.ANEXO_IV_A || isAnexoVIII ? (
              <div className="space-y-4 mb-4">
-                 <div className={`border border-dashed ${tipo === TipoAnexo.ANEXO_VIII_A ? 'border-orange-300 bg-orange-50' : 'border-amber-300 bg-amber-50'} p-4 rounded text-center`}>
-                    <p className={`text-xs font-bold ${tipo === TipoAnexo.ANEXO_VIII_A ? 'text-orange-800' : 'text-amber-800'} mb-2`}>
-                        {tipo === TipoAnexo.ANEXO_VIII_A ? "Subir Convenio" : "1. Convenio con el Organismo Público"} <span className="text-red-500">*</span>
+                 <div className={`border border-dashed ${isAnexoVIII ? 'border-orange-300 bg-orange-50' : 'border-amber-300 bg-amber-50'} p-4 rounded text-center`}>
+                    <p className={`text-xs font-bold ${isAnexoVIII ? 'text-orange-800' : 'text-amber-800'} mb-2`}>
+                        {isAnexoVIII ? "Subir Convenio" : "1. Convenio con el Organismo Público"} <span className="text-red-500">*</span>
                     </p>
-                    <label className={`cursor-pointer bg-white px-3 py-1 border rounded text-xs font-medium hover:bg-gray-50 ${tipo === TipoAnexo.ANEXO_VIII_A ? 'border-orange-200 text-orange-700' : 'border-amber-200 text-amber-700'}`}>
+                    <label className={`cursor-pointer bg-white px-3 py-1 border rounded text-xs font-medium hover:bg-gray-50 ${isAnexoVIII ? 'border-orange-200 text-orange-700' : 'border-amber-200 text-amber-700'}`}>
                             Seleccionar PDF
                             <input type="file" className="hidden" accept=".pdf" onChange={(e) => handleAddFile(e, 'CONVENIO')} />
                     </label>
@@ -766,6 +851,14 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
           )}
         </div>
         )}
+
+        <div className="border-t pt-4">
+            <p className="text-sm text-gray-600 font-medium">Firmado por el Director:</p>
+            <div className="flex items-center mt-2 text-gray-800 bg-gray-100 p-2 rounded w-fit px-4 border border-gray-300">
+                <PenTool className="h-4 w-4 mr-2 text-gray-500" />
+                <span className="font-bold">{currentCentro?.nombre_director || "Nombre Director No Disponible"}</span>
+            </div>
+        </div>
 
         <div className="flex justify-end pt-4">
           <button

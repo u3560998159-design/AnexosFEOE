@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Layout } from './components/Layout';
 import { Dashboard } from './components/Dashboard';
 import { RequestForm } from './components/RequestForm';
 import { ReviewPanel } from './components/ReviewPanel';
 import { DataManagement } from './components/DataManagement';
-import { Usuario, Solicitud, Estado, Centro, Alumno } from './types';
-import { USUARIOS_MOCK, SOLICITUDES_INICIALES, CENTROS as INITIAL_CENTROS, ALUMNOS as INITIAL_ALUMNOS } from './constants';
+import { Usuario, Solicitud, Estado, Centro, Alumno, Rol, TipoAnexo } from './types';
+import { USUARIOS_MOCK, SOLICITUDES_INICIALES, CENTROS as INITIAL_CENTROS, ALUMNOS as INITIAL_ALUMNOS, getResolverRole } from './constants';
 import { UserCheck } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -71,6 +71,34 @@ const App: React.FC = () => {
     }
   };
 
+  // Cálculo de notificaciones (Solicitudes pendientes para el usuario actual)
+  const pendingCount = useMemo(() => {
+    if (!currentUser) return 0;
+    return requests.filter(req => {
+        const centro = centros.find(c => c.codigo === req.codigo_centro);
+        
+        // Inspectores: Solo ven PENDIENTE_INSPECCION (Anexos VIII) de su provincia
+        if (currentUser.rol === Rol.INSPECTOR) {
+            return req.estado === Estado.PENDIENTE_INSPECCION && centro?.provincia === currentUser.provincia;
+        }
+
+        // Delegados: Ven PENDIENTE_RESOLUCION pero SOLO los que ellos resuelven (IV_A y VIII) de su provincia
+        if (currentUser.rol === Rol.DELEGADO) {
+             if (centro?.provincia !== currentUser.provincia) return false;
+             if (req.estado !== Estado.PENDIENTE_RESOLUCION) return false;
+             return getResolverRole(req.tipo_anexo) === Rol.DELEGADO;
+        }
+
+        // DG: Ve PENDIENTE_RESOLUCION de los que él resuelve
+        if (currentUser.rol === Rol.DG) {
+            if (req.estado !== Estado.PENDIENTE_RESOLUCION) return false;
+            return getResolverRole(req.tipo_anexo) === Rol.DG;
+        }
+
+        return false;
+    }).length;
+  }, [requests, currentUser, centros]);
+
   // --- LOGIN SCREEN ---
   if (!currentUser) {
     return (
@@ -108,7 +136,7 @@ const App: React.FC = () => {
 
   // --- MAIN APP ---
   return (
-    <Layout user={currentUser} onLogout={handleLogout} onNavigate={handleNavigation}>
+    <Layout user={currentUser} onLogout={handleLogout} onNavigate={handleNavigation} pendingCount={pendingCount}>
       {view === 'DASHBOARD' && (
         <Dashboard 
           user={currentUser} 
