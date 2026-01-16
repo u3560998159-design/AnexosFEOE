@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Usuario, TipoAnexo, Estado, Solicitud, HistorialEntrada, Alumno, Documento, Centro } from '../types';
+import { getTargetResolutionState } from '../constants';
 import { Save, ArrowLeft, Upload, AlertCircle, FileText, Trash2, Eye, Calendar, UserPlus, Building2, School, GraduationCap, Globe, PenTool, Search } from 'lucide-react';
 
 interface RequestFormProps {
@@ -249,19 +250,21 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
         }
     }
 
-    // Lógica de estado inicial según Anexo
-    // REGLA: I, VIII-A, VIII-B y XIII requieren informe de inspección.
-    // Resto (II, IV-A, IV-B, V) van directos a Resolución.
+    // Lógica de estado inicial
+    let initialStatus: Estado;
     
-    let initialStatus = Estado.PENDIENTE_RESOLUCION;
-    
-    if (
+    // 1. Algunos anexos requieren inspección previa
+    const requiresInspection = 
         tipo === TipoAnexo.ANEXO_I || 
         tipo === TipoAnexo.ANEXO_VIII_A || 
         tipo === TipoAnexo.ANEXO_VIII_B || 
-        tipo === TipoAnexo.ANEXO_XIII
-    ) {
+        tipo === TipoAnexo.ANEXO_XIII;
+
+    if (requiresInspection) {
         initialStatus = Estado.PENDIENTE_INSPECCION;
+    } else {
+        // 2. Si no requiere inspección, va directo al estado de resolución correspondiente
+        initialStatus = getTargetResolutionState(tipo);
     }
 
     // Crear entrada inicial del historial
@@ -353,7 +356,7 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
                   setExtraCondicion("FEOE durante el mes de julio");
               }
             }}
-            className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-rayuela-500 focus:border-rayuela-500 border p-2 text-sm" // Añadido text-sm para reducir tamaño si los nombres son largos
+            className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-rayuela-500 focus:border-rayuela-500 border p-2 text-sm" 
           >
             {Object.values(TipoAnexo).map(t => (
               <option key={t} value={t}>{t}</option>
@@ -362,8 +365,6 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
         </div>
 
         {/* ... (Rest of fields - no changes logic here, just pass through) ... */}
-        {/* Note: I'm keeping the exact same structure for fields from previous turns to avoid huge XML, 
-            only replacing Student Selection below */}
             
         {/* ANEXO I Fields */}
         {tipo === TipoAnexo.ANEXO_I && (

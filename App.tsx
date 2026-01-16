@@ -5,7 +5,7 @@ import { RequestForm } from './components/RequestForm';
 import { ReviewPanel } from './components/ReviewPanel';
 import { DataManagement } from './components/DataManagement';
 import { Usuario, Solicitud, Estado, Centro, Alumno, Rol, TipoAnexo } from './types';
-import { USUARIOS_MOCK, SOLICITUDES_INICIALES, CENTROS as INITIAL_CENTROS, ALUMNOS as INITIAL_ALUMNOS, getResolverRole } from './constants';
+import { USUARIOS_MOCK, SOLICITUDES_INICIALES, CENTROS as INITIAL_CENTROS, ALUMNOS as INITIAL_ALUMNOS } from './constants';
 import { UserCheck } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -35,34 +35,26 @@ const App: React.FC = () => {
     const centroCode = currentUser?.codigo_centro || '00000000';
     const currentYear = new Date().getFullYear();
     
-    // Obtenemos el código corto del anexo (ej: "I", "IV-A", "VIII-B")
-    // Viene de "Anexo IV-A - Solicitud..." -> split espacio -> índice 1 es "IV-A"
+    // Obtenemos el código corto del anexo
     const anexoCode = partialReq.tipo_anexo?.split(' ')[1] || 'GEN';
     
-    // Lógica de Consecutivo por Centro:
-    // 1. Filtramos todas las solicitudes de ESTE centro y ESTE año.
+    // Lógica de Consecutivo por Centro
     const centerRequests = requests.filter(r => 
         r.codigo_centro === centroCode && 
         r.id.startsWith(`${currentYear}-`)
     );
 
-    // 2. Buscamos el número de secuencia más alto.
-    // El formato del ID es: AÑO-CENTRO-TIPO-NUMERO (El tipo puede tener guiones, el número es siempre el último segmento)
     let maxSequence = 0;
-    
     centerRequests.forEach(req => {
         const parts = req.id.split('-');
-        const lastPart = parts[parts.length - 1]; // El último elemento es la secuencia
+        const lastPart = parts[parts.length - 1]; 
         const seq = parseInt(lastPart, 10);
-        
         if (!isNaN(seq) && seq > maxSequence) {
             maxSequence = seq;
         }
     });
 
-    // 3. El nuevo número es el máximo encontrado + 1
     const nextSequence = maxSequence + 1;
-    
     const newId = `${currentYear}-${centroCode}-${anexoCode}-${nextSequence}`;
     
     const newReq: Solicitud = {
@@ -83,9 +75,13 @@ const App: React.FC = () => {
   };
 
   const handleDeleteRequest = (id: string) => {
-    setRequests(requests.filter(r => r.id !== id));
-    setView('DASHBOARD');
+    // Usar functional update para garantizar el estado más reciente
+    setRequests(prevRequests => {
+        const newRequests = prevRequests.filter(r => r.id !== id);
+        return [...newRequests]; // Crear nueva referencia de array
+    });
     setSelectedRequest(null);
+    setView('DASHBOARD');
   };
 
   const openRequest = (req: Solicitud) => {
@@ -105,36 +101,26 @@ const App: React.FC = () => {
     }
   };
 
-  // Cálculo de notificaciones (Solicitudes pendientes para el usuario actual)
+  // Cálculo de notificaciones
   const pendingCount = useMemo(() => {
     if (!currentUser) return 0;
     return requests.filter(req => {
-        // Excluir anuladas del conteo de pendientes
         if (req.estado === Estado.ANULADA) return false;
-
-        // Pendiente Anulación solo notifica a SUPERUSER
         if (req.estado === Estado.PENDIENTE_ANULACION) {
             return currentUser.rol === Rol.SUPERUSER;
         }
 
         const centro = centros.find(c => c.codigo === req.codigo_centro);
         
-        // Inspectores: Solo ven PENDIENTE_INSPECCION (Anexos VIII) de su provincia
         if (currentUser.rol === Rol.INSPECTOR) {
             return req.estado === Estado.PENDIENTE_INSPECCION && centro?.provincia === currentUser.provincia;
         }
-
-        // Delegados: Ven PENDIENTE_RESOLUCION pero SOLO los que ellos resuelven (IV_A y VIII) de su provincia
         if (currentUser.rol === Rol.DELEGADO) {
              if (centro?.provincia !== currentUser.provincia) return false;
-             if (req.estado !== Estado.PENDIENTE_RESOLUCION) return false;
-             return getResolverRole(req.tipo_anexo) === Rol.DELEGADO;
+             return req.estado === Estado.PENDIENTE_RESOLUCION_DELEGACION;
         }
-
-        // DG: Ve PENDIENTE_RESOLUCION de los que él resuelve
         if (currentUser.rol === Rol.DG) {
-            if (req.estado !== Estado.PENDIENTE_RESOLUCION) return false;
-            return getResolverRole(req.tipo_anexo) === Rol.DG;
+            return req.estado === Estado.PENDIENTE_RESOLUCION_DG;
         }
 
         return false;
@@ -176,7 +162,6 @@ const App: React.FC = () => {
     );
   }
 
-  // --- MAIN APP ---
   return (
     <Layout user={currentUser} onLogout={handleLogout} onNavigate={handleNavigation} pendingCount={pendingCount}>
       {view === 'DASHBOARD' && (
@@ -187,6 +172,7 @@ const App: React.FC = () => {
           alumnos={alumnos}
           onNewRequest={() => setView('CREATE')}
           onSelectRequest={openRequest}
+          onDeleteRequest={handleDeleteRequest}
         />
       )}
 

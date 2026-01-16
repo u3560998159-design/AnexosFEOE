@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Solicitud, Usuario, Rol, Estado, HistorialEntrada, TipoAnexo, Documento, Alumno, Centro } from '../types';
-import { getResolverRole } from '../constants';
+import { getTargetResolutionState } from '../constants';
 import { CheckCircle, XCircle, FileText, ArrowLeft, Send, History, User, ShieldAlert, Edit, Save, Trash2, Upload, AlertCircle, Eye, Calendar, UserPlus, Building2, School, GraduationCap, Globe, Download, PenTool, ClipboardSignature, Ban, Eraser } from 'lucide-react';
 import { jsPDF } from "jspdf";
 
@@ -96,6 +96,9 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
   const [isRequestingAnulation, setIsRequestingAnulation] = useState(false);
   const [anulationReason, setAnulationReason] = useState('');
 
+  // Delete Modal State
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+
   const centro = centros.find(c => c.codigo === request.codigo_centro);
   const centroDestinoInfo = centros.find(c => c.codigo === request.centro_destino_codigo);
 
@@ -105,12 +108,12 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
 
   const canInspect = user.rol === Rol.INSPECTOR && request.estado === Estado.PENDIENTE_INSPECCION;
   
-  const targetResolver = getResolverRole(request.tipo_anexo);
-  const isTargetResolver = targetResolver === user.rol;
-  
-  const canResolve = request.estado === Estado.PENDIENTE_RESOLUCION && 
-                     (user.rol === Rol.DG || user.rol === Rol.DELEGADO || user.rol === Rol.SUPERUSER) &&
-                     (user.rol === Rol.SUPERUSER || isTargetResolver);
+  // Lógica de Resolución:
+  // DG solo ve si es PENDIENTE_RESOLUCION_DG
+  // Delegado solo ve si es PENDIENTE_RESOLUCION_DELEGACION
+  const canResolve = (user.rol === Rol.DG && request.estado === Estado.PENDIENTE_RESOLUCION_DG) ||
+                     (user.rol === Rol.DELEGADO && request.estado === Estado.PENDIENTE_RESOLUCION_DELEGACION) ||
+                     (user.rol === Rol.SUPERUSER && (request.estado === Estado.PENDIENTE_RESOLUCION_DG || request.estado === Estado.PENDIENTE_RESOLUCION_DELEGACION));
   
   const isSuperUser = user.rol === Rol.SUPERUSER;
   const isDirector = user.rol === Rol.DIRECTOR && user.codigo_centro === request.codigo_centro;
@@ -162,7 +165,10 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
       alert("Debe indicar observaciones si el informe es desfavorable.");
       return;
     }
-    const nuevoEstado = Estado.PENDIENTE_RESOLUCION; 
+    // Si es favorable, calculamos el destino (DG o DELEGACION).
+    // Si es desfavorable, también pasa a resolución (normalmente para ser denegada).
+    const nuevoEstado = getTargetResolutionState(request.tipo_anexo);
+    
     const accion = favorable ? "Informe Favorable de Inspección" : "Informe Desfavorable de Inspección";
 
     onUpdate(request.id, {
@@ -266,7 +272,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
 
   const addEditAlumno = (dni: string) => { if (dni && !editAlumnos.includes(dni)) setEditAlumnos([...editAlumnos, dni]); };
   const removeEditAlumno = (dni: string) => { setEditAlumnos(editAlumnos.filter(id => id !== dni)); };
-  const removeExistingDoc = (index: number) => { if(confirm("¿Seguro?")) { const newDocs = [...editDocs]; newDocs.splice(index, 1); setEditDocs(newDocs); } };
+  const removeExistingDoc = (index: number) => { if(window.confirm("¿Seguro?")) { const newDocs = [...editDocs]; newDocs.splice(index, 1); setEditDocs(newDocs); } };
   const handleAddNewFile = (e: React.ChangeEvent<HTMLInputElement>, type?: string) => { if(e.target.files?.[0]) setNewFiles([...newFiles, { file: e.target.files[0], type }]); };
   const viewDocument = (doc: Documento) => { if (doc.url) window.open(doc.url, '_blank'); else alert(`Simulación: ${doc.nombre}`); };
 
@@ -303,10 +309,44 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
       onClose();
   };
 
-  const handleDelete = () => {
-      if(confirm("¿ESTÁ SEGURO? Esta acción eliminará permanentemente la solicitud del sistema. No se puede deshacer.")) {
-          onDelete(request.id);
+  const handleDeleteClick = () => {
+      setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = () => {
+      onDelete(request.id);
+      setDeleteModalOpen(false);
+  };
+
+  const cancelDelete = () => {
+      setDeleteModalOpen(false);
+  };
+
+  const handleSendToInspection = () => {
+      // Determinamos si va a inspección o directo a resolución
+      // Lógica similar a RequestForm pero para cuando ya existe como Borrador
+      const requiresInspection = 
+        request.tipo_anexo === TipoAnexo.ANEXO_I || 
+        request.tipo_anexo === TipoAnexo.ANEXO_VIII_A || 
+        request.tipo_anexo === TipoAnexo.ANEXO_VIII_B || 
+        request.tipo_anexo === TipoAnexo.ANEXO_XIII;
+      
+      let nextState: Estado;
+      let actionText = "";
+
+      if (requiresInspection) {
+          nextState = Estado.PENDIENTE_INSPECCION;
+          actionText = "Envío a Inspección";
+      } else {
+          nextState = getTargetResolutionState(request.tipo_anexo);
+          actionText = "Envío a Resolución";
       }
+
+      onUpdate(request.id, { 
+          estado: nextState, 
+          historial: [...request.historial, createHistoryEntry(actionText, nextState)] 
+      }); 
+      onClose();
   };
 
   const formatDate = (isoString: string) => {
@@ -497,7 +537,39 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
   const isAnexoVIII = request.tipo_anexo === TipoAnexo.ANEXO_VIII_A || request.tipo_anexo === TipoAnexo.ANEXO_VIII_B;
 
   return (
-    <div className="bg-white shadow-xl rounded-lg border border-gray-200 flex flex-col h-full max-w-5xl mx-auto">
+    <div className="bg-white shadow-xl rounded-lg border border-gray-200 flex flex-col h-full max-w-5xl mx-auto relative">
+      
+      {/* MODAL DE CONFIRMACIÓN DE BORRADO */}
+      {deleteModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 animate-in fade-in duration-200">
+              <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 transform scale-100 transition-transform">
+                  <div className="flex items-center text-red-600 mb-4">
+                      <AlertCircle className="h-8 w-8 mr-3" />
+                      <h3 className="text-lg font-bold">Confirmar Eliminación</h3>
+                  </div>
+                  <p className="text-gray-600 mb-6">
+                      ¿Está seguro de que desea eliminar la solicitud <strong>{request.id}</strong>? 
+                      <br/><br/>
+                      <span className="text-xs text-red-500 font-bold uppercase">Esta acción es irreversible y eliminará el registro permanentemente del sistema.</span>
+                  </p>
+                  <div className="flex justify-end space-x-3">
+                      <button 
+                          onClick={cancelDelete}
+                          className="px-4 py-2 bg-white text-gray-700 border border-gray-300 rounded hover:bg-gray-50 text-sm font-medium"
+                      >
+                          Cancelar
+                      </button>
+                      <button 
+                          onClick={confirmDelete}
+                          className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 shadow-sm text-sm font-bold flex items-center"
+                      >
+                          <Trash2 className="h-4 w-4 mr-2" /> Eliminar Definitivamente
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
         <div>
@@ -1053,7 +1125,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
              )}
              
              {isDirector && request.estado === Estado.BORRADOR && (
-                 <button onClick={() => { onUpdate(request.id, { estado: Estado.PENDIENTE_RESOLUCION, historial: [...request.historial, createHistoryEntry("Envío a Inspección", Estado.PENDIENTE_RESOLUCION)] }); onClose(); }} className="w-full bg-blue-600 text-white py-2 rounded text-sm flex justify-center items-center"><Send className="h-4 w-4 mr-2" /> Enviar</button>
+                 <button onClick={handleSendToInspection} className="w-full bg-blue-600 text-white py-2 rounded text-sm flex justify-center items-center"><Send className="h-4 w-4 mr-2" /> Enviar</button>
              )}
 
              {/* CANCELATION FLOW */}
@@ -1099,7 +1171,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
                         <button onClick={handleAdminChange} className="w-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 rounded">Forzar Estado</button>
                     </div>
                     
-                    <button onClick={handleDelete} className="w-full bg-gray-800 hover:bg-black text-white text-xs font-bold py-2 rounded flex items-center justify-center">
+                    <button onClick={handleDeleteClick} className="w-full bg-gray-800 hover:bg-black text-white text-xs font-bold py-2 rounded flex items-center justify-center">
                         <Trash2 className="h-3 w-3 mr-2" /> BORRAR SOLICITUD
                     </button>
                  </div>

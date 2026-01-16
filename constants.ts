@@ -31,7 +31,7 @@ const BASE_SOLICITUDES: Solicitud[] = [
   {
     id: "2025-06006899-I-001",
     tipo_anexo: TipoAnexo.ANEXO_I,
-    estado: Estado.PENDIENTE_RESOLUCION, 
+    estado: Estado.PENDIENTE_RESOLUCION_DG, 
     fecha_creacion: "2025-03-15",
     codigo_centro: "06006899",
     alumnos_implicados: ["80247196N"],
@@ -49,7 +49,7 @@ const BASE_SOLICITUDES: Solicitud[] = [
         fecha: "2025-03-16T10:00:00.000Z",
         autor: "Inspector Badajoz",
         rol: Rol.INSPECTOR,
-        estado_nuevo: Estado.PENDIENTE_RESOLUCION,
+        estado_nuevo: Estado.PENDIENTE_RESOLUCION_DG,
         accion: "Informe Favorable"
       }
     ]
@@ -57,7 +57,7 @@ const BASE_SOLICITUDES: Solicitud[] = [
   {
     id: "2025-10003789-IVA-002",
     tipo_anexo: TipoAnexo.ANEXO_IV_A,
-    estado: Estado.PENDIENTE_RESOLUCION, // Delegado
+    estado: Estado.PENDIENTE_RESOLUCION_DELEGACION, // IV-A es Delegado
     fecha_creacion: "2025-03-20",
     codigo_centro: "10003789",
     alumnos_implicados: ["87654321X"],
@@ -67,7 +67,7 @@ const BASE_SOLICITUDES: Solicitud[] = [
         fecha: "2025-03-20T09:30:00.000Z",
         autor: "Director Brocense",
         rol: Rol.DIRECTOR,
-        estado_nuevo: Estado.PENDIENTE_RESOLUCION,
+        estado_nuevo: Estado.PENDIENTE_RESOLUCION_DELEGACION,
         accion: "Creación y Envío"
       }
     ]
@@ -85,7 +85,7 @@ const BASE_SOLICITUDES: Solicitud[] = [
         fecha: "2025-02-10T08:00:00.000Z",
         autor: "Director San Roque",
         rol: Rol.DIRECTOR,
-        estado_nuevo: Estado.PENDIENTE_RESOLUCION,
+        estado_nuevo: Estado.PENDIENTE_RESOLUCION_DG,
         accion: "Creación y Envío"
       },
       {
@@ -102,7 +102,7 @@ const BASE_SOLICITUDES: Solicitud[] = [
   {
     id: "2025-06006899-II-OLD-1",
     tipo_anexo: TipoAnexo.ANEXO_II,
-    estado: Estado.PENDIENTE_RESOLUCION,
+    estado: Estado.PENDIENTE_RESOLUCION_DG,
     fecha_creacion: "2025-01-10",
     codigo_centro: "06006899",
     alumnos_implicados: ["80238007T"],
@@ -114,7 +114,7 @@ const BASE_SOLICITUDES: Solicitud[] = [
         fecha: "2025-01-10T09:00:00.000Z", // Más de 10 días
         autor: "Director San Roque",
         rol: Rol.DIRECTOR,
-        estado_nuevo: Estado.PENDIENTE_RESOLUCION,
+        estado_nuevo: Estado.PENDIENTE_RESOLUCION_DG,
         accion: "Creación y Envío"
       }
     ]
@@ -122,7 +122,7 @@ const BASE_SOLICITUDES: Solicitud[] = [
   {
     id: "2025-10003789-VIII-OLD-2",
     tipo_anexo: TipoAnexo.ANEXO_VIII_A,
-    estado: Estado.PENDIENTE_RESOLUCION,
+    estado: Estado.PENDIENTE_RESOLUCION_DELEGACION, // VIII-A Delegado
     fecha_creacion: "2025-01-15",
     codigo_centro: "10003789",
     alumnos_implicados: [],
@@ -144,14 +144,14 @@ const BASE_SOLICITUDES: Solicitud[] = [
         fecha: "2025-01-20T10:00:00.000Z", // Más de 10 días desde el último cambio
         autor: "Inspector Cáceres",
         rol: Rol.INSPECTOR,
-        estado_nuevo: Estado.PENDIENTE_RESOLUCION,
+        estado_nuevo: Estado.PENDIENTE_RESOLUCION_DELEGACION,
         accion: "Informe Favorable"
       }
     ]
   }
 ];
 
-// Generar 15 solicitudes mock adicionales para I.E.S. El Brocense (10003789)
+// Generar 15 solicitudes mock adicionales
 const generateMockRequests = (): Solicitud[] => {
   const mocks: Solicitud[] = [];
   const estados = Object.values(Estado);
@@ -167,12 +167,12 @@ const generateMockRequests = (): Solicitud[] => {
     const fecha = `2025-04-${day < 10 ? '0' + day : day}`;
 
     mocks.push({
-      id: `2025-10003789-${anexoCode}-${i + 100}`, // ID alto para que se vea claro
+      id: `2025-10003789-${anexoCode}-${i + 100}`,
       tipo_anexo: tipoRandom,
       estado: estadoRandom,
       fecha_creacion: fecha,
-      codigo_centro: "10003789", // El Brocense
-      alumnos_implicados: i % 2 === 0 ? ["87654321X"] : [], // Algunos con alumnos, otros no
+      codigo_centro: "10003789", 
+      alumnos_implicados: i % 2 === 0 ? ["87654321X"] : [], 
       documentos_adjuntos: [],
       motivo: tipoRandom === TipoAnexo.ANEXO_I ? "Insuficiencia de plazas formativas..." : undefined,
       condicion_extraordinaria: tipoRandom === TipoAnexo.ANEXO_VIII_A ? "En días no lectivos" : undefined,
@@ -196,20 +196,25 @@ const generateMockRequests = (): Solicitud[] => {
 
 export const SOLICITUDES_INICIALES = [...BASE_SOLICITUDES, ...generateMockRequests()];
 
-// Helper to determine who resolves what
-export const getResolverRole = (tipo: TipoAnexo): Rol | 'AUTO' => {
+/**
+ * Determina el estado de resolución objetivo (DG o DELEGACION)
+ * basado en el tipo de anexo.
+ */
+export const getTargetResolutionState = (tipo: TipoAnexo): Estado => {
   switch (tipo) {
     case TipoAnexo.ANEXO_IV_A:
     case TipoAnexo.ANEXO_VIII_A:
-      return Rol.DELEGADO; // IV-A y VIII-A resueltos por Delegado
+      return Estado.PENDIENTE_RESOLUCION_DELEGACION;
+    
     case TipoAnexo.ANEXO_I:
     case TipoAnexo.ANEXO_II:
     case TipoAnexo.ANEXO_IV_B:
     case TipoAnexo.ANEXO_V:
     case TipoAnexo.ANEXO_VIII_B:
     case TipoAnexo.ANEXO_XIII:
-      return Rol.DG; // Resto resueltos por DG
+      return Estado.PENDIENTE_RESOLUCION_DG;
+      
     default:
-      return Rol.DG;
+      return Estado.PENDIENTE_RESOLUCION_DG;
   }
 };
