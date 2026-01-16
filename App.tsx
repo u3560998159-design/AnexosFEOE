@@ -14,7 +14,6 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<Usuario | null>(null);
   const [requests, setRequests] = useState<Solicitud[]>(SOLICITUDES_INICIALES);
   
-  // Estados para CRUD de Centros y Alumnos
   const [centros, setCentros] = useState<Centro[]>(INITIAL_CENTROS);
   const [alumnos, setAlumnos] = useState<Alumno[]>(INITIAL_ALUMNOS);
   const [dataTab, setDataTab] = useState<'CENTROS' | 'ALUMNOS'>('CENTROS');
@@ -22,7 +21,6 @@ const App: React.FC = () => {
   const [view, setView] = useState<'DASHBOARD' | 'CREATE' | 'REVIEW' | 'DATA_MANAGEMENT' | 'RECYCLE_BIN'>('DASHBOARD');
   const [selectedRequest, setSelectedRequest] = useState<Solicitud | null>(null);
 
-  // Toast State
   const [toast, setToast] = useState<{ message: string, type: ToastType, isVisible: boolean }>({ 
       message: '', type: 'SUCCESS', isVisible: false 
   });
@@ -46,10 +44,8 @@ const App: React.FC = () => {
     const centroCode = currentUser?.codigo_centro || '00000000';
     const currentYear = new Date().getFullYear();
     
-    // Obtenemos el código corto del anexo
     const anexoCode = partialReq.tipo_anexo?.split(' ')[1] || 'GEN';
     
-    // Lógica de Consecutivo por Centro
     const centerRequests = requests.filter(r => 
         r.codigo_centro === centroCode && 
         r.id.startsWith(`${currentYear}-`)
@@ -87,7 +83,6 @@ const App: React.FC = () => {
     setSelectedRequest(null);
   };
 
-  // Soft Delete: Move to Trash
   const handleSoftDeleteRequest = (id: string) => {
       const target = requests.find(r => r.id === id);
       if(!target) return;
@@ -108,16 +103,13 @@ const App: React.FC = () => {
       } : r));
       
       setSelectedRequest(null);
-      // El toast se dispara en el componente hijo
       setView('DASHBOARD');
   };
 
-  // Restore from Trash
   const handleRestoreRequest = (id: string) => {
       const target = requests.find(r => r.id === id);
       if(!target) return;
       
-      // Restauramos a BORRADOR para seguridad
       const restoreEntry = {
           fecha: new Date().toISOString(),
           autor: currentUser?.nombre || 'Desconocido',
@@ -136,7 +128,6 @@ const App: React.FC = () => {
       showToast("Solicitud restaurada a Borrador", 'SUCCESS');
   };
 
-  // Hard Delete: Permanent
   const handlePermanentDelete = (id: string) => {
       setRequests(prev => prev.filter(r => r.id !== id));
       showToast("Solicitud eliminada permanentemente", 'WARNING');
@@ -159,7 +150,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Cálculo de notificaciones
   const pendingCount = useMemo(() => {
     if (!currentUser) return 0;
     return requests.filter(req => {
@@ -185,13 +175,12 @@ const App: React.FC = () => {
     }).length;
   }, [requests, currentUser, centros]);
 
-  // --- LOGIN SCREEN ---
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-xl p-8 max-w-2xl w-full">
+        <div className="bg-white rounded-lg shadow-xl p-6 sm:p-8 max-w-2xl w-full">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-rayuela-700 mb-2">Gestor FEOE</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-rayuela-700 mb-2">Gestor FEOE</h1>
             <p className="text-gray-600">Prototipo de Simulación de Perfiles</p>
           </div>
           
@@ -202,12 +191,12 @@ const App: React.FC = () => {
                  onClick={() => handleLogin(u)}
                  className="flex items-center p-4 border rounded-lg hover:bg-rayuela-50 hover:border-rayuela-500 transition-all group text-left"
                >
-                 <div className="h-10 w-10 rounded-full bg-rayuela-100 text-rayuela-700 flex items-center justify-center mr-4 group-hover:bg-rayuela-700 group-hover:text-white transition-colors">
+                 <div className="h-10 w-10 flex-shrink-0 rounded-full bg-rayuela-100 text-rayuela-700 flex items-center justify-center mr-4 group-hover:bg-rayuela-700 group-hover:text-white transition-colors">
                    <UserCheck className="h-5 w-5" />
                  </div>
-                 <div>
-                   <p className="font-bold text-gray-800">{u.nombre}</p>
-                   <p className="text-xs text-gray-500 uppercase">{u.rol}</p>
+                 <div className="overflow-hidden">
+                   <p className="font-bold text-gray-800 truncate">{u.nombre}</p>
+                   <p className="text-xs text-gray-500 uppercase truncate">{u.rol}</p>
                  </div>
                </button>
              ))}

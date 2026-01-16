@@ -19,7 +19,6 @@ export const DataManagement: React.FC<DataManagementProps> = ({
   activeTab,
   onTabChange
 }) => {
-  // Forms states
   const [newCentro, setNewCentro] = React.useState<Partial<Centro>>({ codigo: '', nombre: '', localidad: '', provincia: 'Badajoz' });
   const [newAlumno, setNewAlumno] = React.useState<Partial<Alumno>>({ dni: '', nombre: '', apellidos: '', codigo_centro: '', curso: '', grupo: '' });
 
@@ -51,21 +50,21 @@ export const DataManagement: React.FC<DataManagementProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="bg-white shadow rounded-lg p-6">
+      <div className="bg-white shadow rounded-lg p-4 sm:p-6">
         <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
             <DatabaseIcon className="h-6 w-6 mr-2 text-rayuela-700" /> Gestión de Datos Maestros
         </h2>
         
-        <div className="flex space-x-4 border-b mb-6">
+        <div className="flex space-x-4 border-b mb-6 overflow-x-auto">
             <button 
                 onClick={() => onTabChange('CENTROS')}
-                className={`pb-2 px-4 font-medium text-sm transition-colors border-b-2 ${activeTab === 'CENTROS' ? 'border-rayuela-700 text-rayuela-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                className={`pb-2 px-4 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'CENTROS' ? 'border-rayuela-700 text-rayuela-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
             >
                 Centros Educativos
             </button>
             <button 
                 onClick={() => onTabChange('ALUMNOS')}
-                className={`pb-2 px-4 font-medium text-sm transition-colors border-b-2 ${activeTab === 'ALUMNOS' ? 'border-rayuela-700 text-rayuela-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                className={`pb-2 px-4 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${activeTab === 'ALUMNOS' ? 'border-rayuela-700 text-rayuela-700' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
             >
                 Alumnado FP
             </button>
@@ -74,12 +73,12 @@ export const DataManagement: React.FC<DataManagementProps> = ({
         {activeTab === 'CENTROS' && (
             <div className="space-y-6">
                 {/* Add Form */}
-                <div className="bg-gray-50 p-4 rounded border border-gray-200 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                <div className="bg-gray-50 p-4 rounded border border-gray-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 items-end">
                     <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase">Código</label>
                         <input type="text" value={newCentro.codigo} onChange={e => setNewCentro({...newCentro, codigo: e.target.value})} className="w-full border p-2 rounded text-sm" placeholder="Ej: 0600..." />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2 md:col-span-2">
                         <label className="block text-xs font-bold text-gray-500 uppercase">Nombre</label>
                         <input type="text" value={newCentro.nombre} onChange={e => setNewCentro({...newCentro, nombre: e.target.value})} className="w-full border p-2 rounded text-sm" placeholder="Nombre del centro" />
                     </div>
@@ -87,8 +86,8 @@ export const DataManagement: React.FC<DataManagementProps> = ({
                         <label className="block text-xs font-bold text-gray-500 uppercase">Localidad</label>
                         <input type="text" value={newCentro.localidad} onChange={e => setNewCentro({...newCentro, localidad: e.target.value})} className="w-full border p-2 rounded text-sm" />
                     </div>
-                    <button onClick={handleAddCentro} className="bg-rayuela-700 text-white p-2 rounded hover:bg-rayuela-800 flex justify-center items-center">
-                        <Plus className="h-5 w-5" /> Añadir
+                    <button onClick={handleAddCentro} className="bg-rayuela-700 text-white p-2 rounded hover:bg-rayuela-800 flex justify-center items-center h-10 w-full sm:w-auto">
+                        <Plus className="h-5 w-5" /> <span className="sm:hidden ml-2">Añadir</span>
                     </button>
                 </div>
 
@@ -123,16 +122,16 @@ export const DataManagement: React.FC<DataManagementProps> = ({
         {activeTab === 'ALUMNOS' && (
             <div className="space-y-6">
                 {/* Add Form */}
-                <div className="bg-gray-50 p-4 rounded border border-gray-200 grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+                <div className="bg-gray-50 p-4 rounded border border-gray-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 items-end">
                     <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase">DNI</label>
                         <input type="text" value={newAlumno.dni} onChange={e => setNewAlumno({...newAlumno, dni: e.target.value})} className="w-full border p-2 rounded text-sm" />
                     </div>
-                    <div className="md:col-span-2">
+                    <div className="sm:col-span-2 md:col-span-2">
                         <label className="block text-xs font-bold text-gray-500 uppercase">Nombre</label>
                         <input type="text" value={newAlumno.nombre} onChange={e => setNewAlumno({...newAlumno, nombre: e.target.value})} className="w-full border p-2 rounded text-sm" placeholder="Nombre" />
                     </div>
-                     <div className="md:col-span-2">
+                     <div className="sm:col-span-2 md:col-span-2">
                         <label className="block text-xs font-bold text-gray-500 uppercase">Apellidos</label>
                         <input type="text" value={newAlumno.apellidos} onChange={e => setNewAlumno({...newAlumno, apellidos: e.target.value})} className="w-full border p-2 rounded text-sm" placeholder="Apellidos" />
                     </div>
@@ -147,8 +146,8 @@ export const DataManagement: React.FC<DataManagementProps> = ({
                         <label className="block text-xs font-bold text-gray-500 uppercase">Curso</label>
                         <input type="text" value={newAlumno.curso} onChange={e => setNewAlumno({...newAlumno, curso: e.target.value})} className="w-full border p-2 rounded text-sm" placeholder="Ej: 2º DAM" />
                     </div>
-                    <button onClick={handleAddAlumno} className="bg-rayuela-700 text-white p-2 rounded hover:bg-rayuela-800 flex justify-center items-center">
-                        <Plus className="h-5 w-5" />
+                    <button onClick={handleAddAlumno} className="bg-rayuela-700 text-white p-2 rounded hover:bg-rayuela-800 flex justify-center items-center h-10 w-full sm:w-auto">
+                        <Plus className="h-5 w-5" /> <span className="sm:hidden ml-2">Añadir</span>
                     </button>
                 </div>
 

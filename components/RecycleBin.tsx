@@ -12,7 +12,6 @@ interface RecycleBinProps {
 export const RecycleBin: React.FC<RecycleBinProps> = ({ deletedRequests, centros, onRestore, onPermanentDelete }) => {
   const [filterText, setFilterText] = useState('');
   
-  // Modal states for permanent delete
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
@@ -40,14 +39,14 @@ export const RecycleBin: React.FC<RecycleBinProps> = ({ deletedRequests, centros
 
   return (
     <div className="space-y-6">
-      <div className="bg-white shadow rounded-lg p-6 border border-gray-200">
-         <div className="flex items-center justify-between mb-6">
+      <div className="bg-white shadow rounded-lg p-4 sm:p-6 border border-gray-200">
+         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 space-y-2 sm:space-y-0">
             <h2 className="text-xl font-bold text-gray-800 flex items-center">
                 <Trash2 className="h-6 w-6 mr-2 text-gray-500" /> Papelera de Reciclaje
             </h2>
             <div className="bg-amber-50 text-amber-800 text-xs px-3 py-1 rounded-full border border-amber-200 flex items-center">
                 <AlertTriangle className="h-3 w-3 mr-1" />
-                Los elementos se eliminarán automáticamente tras 30 días.
+                Los elementos se eliminarán tras 30 días.
             </div>
          </div>
 
@@ -83,7 +82,6 @@ export const RecycleBin: React.FC<RecycleBinProps> = ({ deletedRequests, centros
                         </tr>
                     ) : (
                         filteredRequests.map(req => {
-                            // Find deletion entry
                             const deleteEntry = [...req.historial].reverse().find(h => h.estado_nuevo === Estado.PAPELERA);
                             const deleteDate = deleteEntry ? new Date(deleteEntry.fecha).toLocaleString() : 'Desconocida';
                             
@@ -117,7 +115,6 @@ export const RecycleBin: React.FC<RecycleBinProps> = ({ deletedRequests, centros
          </div>
       </div>
 
-      {/* Modal Confirmación Borrado Permanente */}
       {deleteModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 animate-in fade-in duration-200">
               <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 transform scale-100 transition-transform">

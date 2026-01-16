@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Solicitud, Usuario, Rol, Estado, TipoAnexo, Centro, Alumno } from '../types';
-import { Plus, Eye, Clock, ArrowUpDown, ArrowUp, ArrowDown, Search, AlertTriangle, Trash2, Filter, ChevronLeft, ChevronRight, X, AlertCircle } from 'lucide-react';
+import { Plus, Eye, Clock, ArrowUpDown, ArrowUp, ArrowDown, Search, AlertTriangle, Trash2, Filter, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
 import { ToastType } from './Toast';
 
 interface DashboardProps {
@@ -11,7 +11,7 @@ interface DashboardProps {
   onNewRequest: () => void;
   onSelectRequest: (req: Solicitud) => void;
   onDeleteRequest: (id: string) => void;
-  showToast: (msg: string, type: ToastType) => void; // Nuevo prop
+  showToast: (msg: string, type: ToastType) => void; 
 }
 
 type SortKey = 'id' | 'fecha' | 'centro' | 'tipo' | 'estado';
@@ -38,7 +38,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'fecha', direction: 'desc' });
   const [currentPage, setCurrentPage] = useState(1);
 
-  // --- ESTADO PARA MODAL DE BORRADO ---
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
@@ -52,7 +51,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
     return alumnos.filter(a => ids.includes(a.dni)).map(a => `${a.nombre} ${a.apellidos}`).join(', ');
   };
 
-  // --- Funciones Auxiliares ---
   const isStaleRequest = (req: Solicitud) => {
       if (req.estado === Estado.RESUELTA_POSITIVA || req.estado === Estado.RESUELTA_NEGATIVA || req.estado === Estado.ANULADA || req.estado === Estado.PAPELERA) return false;
       const lastEntry = req.historial.length > 0 ? req.historial[req.historial.length - 1] : null;
@@ -71,12 +69,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
     setSortConfig({ key, direction });
   };
 
-  // --- MANEJADORES DE BORRADO ---
   const handleTrashClick = (e: React.MouseEvent, id: string) => {
-      // Detener propagación para evitar entrar en la solicitud
       e.stopPropagation();
       e.preventDefault();
-      
       setItemToDelete(id);
       setDeleteModalOpen(true);
   };
@@ -95,10 +90,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
       setItemToDelete(null);
   };
 
-  // --- Procesamiento de Datos ---
   const processedRequests = useMemo(() => {
     let result = requests.filter(req => {
-      // EXCLUIR PAPELERA DEL DASHBOARD PRINCIPAL
       if (req.estado === Estado.PAPELERA) return false;
 
       const centro = getCentro(req.codigo_centro);
@@ -172,7 +165,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
     if (estado === Estado.PENDIENTE_RESOLUCION_DELEGACION) displayText = "PEND. RES. DELEG.";
 
     return (
-      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${styles[estado] || "bg-gray-100"}`}>
+      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full whitespace-nowrap ${styles[estado] || "bg-gray-100"}`}>
         {displayText}
       </span>
     );
@@ -219,7 +212,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
       {pendingCount > 0 && (
         <div className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-md shadow-sm flex items-center justify-between">
           <div className="flex items-center">
-            <Clock className="h-5 w-5 text-amber-500 mr-2" />
+            <Clock className="h-5 w-5 text-amber-500 mr-2 flex-shrink-0" />
             <p className="text-sm text-amber-700 font-medium">Tienes <strong>{pendingCount}</strong> solicitudes filtradas pendientes.</p>
           </div>
         </div>
@@ -228,30 +221,31 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
       <div className="flex justify-end mb-4">
         {user.rol === Rol.DIRECTOR && (
           <button onClick={onNewRequest} className="bg-rayuela-700 hover:bg-rayuela-800 text-white font-bold py-2 px-4 rounded shadow-md flex items-center transition-colors">
-            <Plus className="h-4 w-4 mr-2" /> Nueva Solicitud
+            <Plus className="h-4 w-4 mr-2" /> <span className="hidden sm:inline">Nueva Solicitud</span><span className="sm:hidden">Nueva</span>
           </button>
         )}
       </div>
 
       <div className="bg-white shadow rounded-lg overflow-hidden border border-gray-200 flex flex-col">
-        <div className="overflow-x-auto">
+        {/* Table Container for Horizontal Scroll */}
+        <div className="overflow-x-auto w-full">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100" onClick={() => handleSort('fecha')}>ID / Fecha <SortIcon colKey="fecha" /></th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 min-w-[150px]" onClick={() => handleSort('fecha')}>ID / Fecha <SortIcon colKey="fecha" /></th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">
                   <div className="flex items-center cursor-pointer hover:text-rayuela-700 mb-2" onClick={() => handleSort('centro')}>Centro <SortIcon colKey="centro" /></div>
                   <div className="relative"><input type="text" placeholder="Filtrar centro..." className="w-full text-xs p-1 pl-6 border rounded" value={filterCentroText} onChange={(e) => setFilterCentroText(e.target.value)} /><Search className="h-3 w-3 text-gray-400 absolute left-1.5 top-1.5" /></div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">
                    <div className="flex items-center cursor-pointer hover:text-rayuela-700 mb-2" onClick={() => handleSort('tipo')}>Tipo <SortIcon colKey="tipo" /></div>
                    <select value={filterTipo} onChange={(e) => setFilterTipo(e.target.value)} className="w-full text-xs p-1 border rounded"><option value="ALL">Todos</option>{Object.values(TipoAnexo).map(t => <option key={t} value={t}>{t.split('-')[0] + '-' + t.split('-')[1]}</option>)}</select>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[180px]">
                    <div className="mb-2">Alumnos</div>
                    <div className="relative"><input type="text" placeholder="Buscar..." className="w-full text-xs p-1 pl-6 border rounded" value={filterAlumnoText} onChange={(e) => setFilterAlumnoText(e.target.value)} /><Search className="h-3 w-3 text-gray-400 absolute left-1.5 top-1.5" /></div>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[180px]">
                   <div className="flex items-center justify-between mb-2">
                      <div className="cursor-pointer hover:text-rayuela-700" onClick={() => handleSort('estado')}>Estado <SortIcon colKey="estado" /></div>
                      {filterEstado !== 'ALL' && <button onClick={() => setFilterEstado('ALL')} className="text-[10px] bg-rayuela-100 text-rayuela-700 px-2 py-0.5 rounded border border-rayuela-300"><Filter className="h-3 w-3 inline" /> Todos</button>}
@@ -273,7 +267,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
                     <tr key={req.id} className={isAnulada ? "bg-gray-100 text-gray-400" : `hover:bg-gray-50 ${isStale ? 'bg-red-50' : ''}`} onClick={() => onSelectRequest(req)}>
                       <td className="px-6 py-4 whitespace-nowrap cursor-pointer">
                          <div className="flex items-center">
-                            {isStale && <AlertTriangle className="h-4 w-4 text-red-500 mr-2" />}
+                            {isStale && <AlertTriangle className="h-4 w-4 text-red-500 mr-2 flex-shrink-0" />}
                             <div><div className={`text-sm font-medium ${isAnulada ? 'line-through' : 'text-rayuela-700'}`}>{req.id}</div><div className="text-xs opacity-75">{req.fecha_creacion}</div></div>
                          </div>
                       </td>
@@ -307,6 +301,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
         {/* Paginación */}
         {processedRequests.length > 0 && (
           <div className="bg-gray-50 px-4 py-3 border-t border-gray-200 flex items-center justify-between sm:px-6">
+            <div className="flex-1 flex justify-between sm:hidden">
+                <button onClick={() => setCurrentPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:bg-gray-100">Anterior</button>
+                <button onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:bg-gray-100">Siguiente</button>
+            </div>
             <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
               <p className="text-sm text-gray-700">Mostrando {indexOfFirstItem + 1} a {Math.min(indexOfLastItem, processedRequests.length)} de {processedRequests.length}</p>
               <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">

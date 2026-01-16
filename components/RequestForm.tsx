@@ -51,42 +51,33 @@ const PROVINCIAS = [
 
 interface TempFile {
   file: File;
-  type?: string; // Para Anexo II, IV-A, VIII-A, VIII-B
+  type?: string; 
 }
 
 export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros, onClose, onSubmit }) => {
   const [tipo, setTipo] = useState<TipoAnexo>(TipoAnexo.ANEXO_I);
   const [selectedAlumnos, setSelectedAlumnos] = useState<string[]>([]);
   
-  // Buscador de alumnos
   const [studentSearchTerm, setStudentSearchTerm] = useState('');
   
-  // Archivos
   const [files, setFiles] = useState<TempFile[]>([]);
   
-  // Estados generales de error
   const [error, setError] = useState<string | null>(null);
 
-  // Estados Anexo I
   const [motivo, setMotivo] = useState<string>('');
   const [motivoOtros, setMotivoOtros] = useState<string>('');
 
-  // Estados Anexo II y XIII (Fechas)
   const [feoeInicio, setFeoeInicio] = useState('');
   const [feoeFin, setFeoeFin] = useState('');
 
-  // Estados Anexo IV-A
   const [numeroConvenio, setNumeroConvenio] = useState('');
   const [organismoPublico, setOrganismoPublico] = useState('');
 
-  // Estados Anexo IV-B
   const [tutorDestino, setTutorDestino] = useState('');
   const [centroDestino, setCentroDestino] = useState('');
 
-  // Estados Anexo V
   const [cursoDual, setCursoDual] = useState('');
 
-  // Estados Anexo VIII-A y VIII-B
   const [extraCondicion, setExtraCondicion] = useState('');
   const [extraJustificacion, setExtraJustificacion] = useState('');
   const [empresaNombre, setEmpresaNombre] = useState('');
@@ -95,13 +86,11 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
   const [empresaDireccion, setEmpresaDireccion] = useState('');
   const [tutorEmpresa, setTutorEmpresa] = useState('');
 
-  // Estados Anexo XIII
   const [nefeJustificacion, setNefeJustificacion] = useState('');
 
   const currentCentro = centros.find(c => c.codigo === user.codigo_centro);
   const centerAlumnos = alumnos.filter(a => a.codigo_centro === user.codigo_centro);
   
-  // Filtrado de alumnos para el buscador
   const availableToAdd = centerAlumnos
     .filter(a => !selectedAlumnos.includes(a.dni))
     .filter(a => {
@@ -113,7 +102,7 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
   const handleAddAlumno = (dni: string) => {
     if (dni && !selectedAlumnos.includes(dni)) {
       setSelectedAlumnos([...selectedAlumnos, dni]);
-      setStudentSearchTerm(''); // Limpiar búsqueda
+      setStudentSearchTerm(''); 
     }
   };
 
@@ -253,7 +242,6 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
     // Lógica de estado inicial
     let initialStatus: Estado;
     
-    // 1. Algunos anexos requieren inspección previa
     const requiresInspection = 
         tipo === TipoAnexo.ANEXO_I || 
         tipo === TipoAnexo.ANEXO_VIII_A || 
@@ -263,11 +251,9 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
     if (requiresInspection) {
         initialStatus = Estado.PENDIENTE_INSPECCION;
     } else {
-        // 2. Si no requiere inspección, va directo al estado de resolución correspondiente
         initialStatus = getTargetResolutionState(tipo);
     }
 
-    // Crear entrada inicial del historial
     const historialInicial: HistorialEntrada[] = [
       {
         fecha: new Date().toISOString(),
@@ -282,7 +268,7 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
         nombre: f.file.name,
         fecha: new Date().toISOString().split('T')[0],
         tipo: f.type,
-        url: URL.createObjectURL(f.file) // Guardamos la URL mockeada
+        url: URL.createObjectURL(f.file) 
     }));
 
     const newRequest: Partial<Solicitud> = {
@@ -319,7 +305,7 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
   const isAnexoVIII = tipo === TipoAnexo.ANEXO_VIII_A || tipo === TipoAnexo.ANEXO_VIII_B;
 
   return (
-    <div className="bg-white shadow-lg rounded-lg border border-gray-200 p-6 max-w-4xl mx-auto">
+    <div className="bg-white shadow-lg rounded-lg border border-gray-200 p-4 sm:p-6 w-full max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6 border-b pb-4">
         <h2 className="text-xl font-bold text-rayuela-700">Nueva Solicitud</h2>
         <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
@@ -329,8 +315,8 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
 
       {error && (
         <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4 text-red-700 flex items-center rounded">
-          <AlertCircle className="h-5 w-5 mr-2" />
-          {error}
+          <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+          <span className="text-sm">{error}</span>
         </div>
       )}
 
@@ -351,7 +337,6 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
               setExtraCondicion(''); setExtraJustificacion(''); setEmpresaNombre(''); setEmpresaLocalidad(''); setEmpresaProvincia(''); setEmpresaDireccion(''); setTutorEmpresa('');
               setNefeJustificacion('');
               
-              // Setear condición fija para VIII-B
               if (newTipo === TipoAnexo.ANEXO_VIII_B) {
                   setExtraCondicion("FEOE durante el mes de julio");
               }
@@ -364,8 +349,6 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
           </select>
         </div>
 
-        {/* ... (Rest of fields - no changes logic here, just pass through) ... */}
-            
         {/* ANEXO I Fields */}
         {tipo === TipoAnexo.ANEXO_I && (
           <div className="bg-blue-50 p-4 rounded-md border border-blue-100 space-y-4">
@@ -406,7 +389,7 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
                 {tipo === TipoAnexo.ANEXO_II ? "Detalles Anexo II (Intensivo)" : "Detalles Anexo XIII (NEFE)"}
             </h3>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Inicio FEOE <span className="text-red-500">*</span></label>
                     <div className="relative">
@@ -542,7 +525,7 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
                 </p>
             </div>
 
-            <div className="overflow-hidden border border-indigo-200 rounded-md">
+            <div className="overflow-hidden border border-indigo-200 rounded-md overflow-x-auto">
                 <table className="min-w-full divide-y divide-indigo-200 text-sm">
                     <thead className="bg-indigo-100">
                         <tr>
@@ -820,7 +803,6 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
             </div>
           )}
 
-          {/* File List */}
           {files.length > 0 ? (
              <ul className="space-y-2">
                  {files.map((f, idx) => (
@@ -861,17 +843,17 @@ export const RequestForm: React.FC<RequestFormProps> = ({ user, alumnos, centros
             </div>
         </div>
 
-        <div className="flex justify-end pt-4">
+        <div className="flex justify-end pt-4 flex-col-reverse sm:flex-row">
           <button
             type="button"
             onClick={onClose}
-            className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none mr-3"
+            className="w-full sm:w-auto mt-2 sm:mt-0 bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mr-3"
           >
             Cancelar
           </button>
           <button
             type="submit"
-            className="bg-rayuela-700 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-rayuela-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rayuela-500"
+            className="w-full sm:w-auto bg-rayuela-700 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-rayuela-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rayuela-500"
           >
             <Save className="h-4 w-4 inline mr-2" />
             Crear Solicitud

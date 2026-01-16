@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Solicitud, Usuario, Rol, Estado, HistorialEntrada, TipoAnexo, Documento, Alumno, Centro } from '../types';
 import { getTargetResolutionState } from '../constants';
-import { CheckCircle, XCircle, FileText, ArrowLeft, Send, History, User, ShieldAlert, Edit, Save, Trash2, Upload, AlertCircle, Eye, Calendar, UserPlus, Building2, School, GraduationCap, Globe, Download, PenTool, ClipboardSignature, Ban, Eraser } from 'lucide-react';
+import { CheckCircle, XCircle, FileText, ArrowLeft, Send, History, User, ShieldAlert, Edit, Save, Trash2, Upload, AlertCircle, Eye, Calendar, UserPlus, Building2, School, GraduationCap, Globe, Download, PenTool, ClipboardSignature, Ban } from 'lucide-react';
 import { jsPDF } from "jspdf";
 import { ToastType } from './Toast';
 
@@ -13,7 +13,7 @@ interface ReviewPanelProps {
   onClose: () => void;
   onUpdate: (id: string, updates: Partial<Solicitud>) => void;
   onDelete: (id: string) => void;
-  showToast: (msg: string, type: ToastType) => void; // Nuevo prop
+  showToast: (msg: string, type: ToastType) => void; 
 }
 
 const MOTIVOS_ANEXO_I = [
@@ -57,13 +57,11 @@ const PROVINCIAS = [
 export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos: allAlumnos, centros, onClose, onUpdate, onDelete, showToast }) => {
   const [observaciones, setObservaciones] = useState('');
   
-  // Modos de Edición (Director)
   const [isEditing, setIsEditing] = useState(false);
   const [editAlumnos, setEditAlumnos] = useState<string[]>(request.alumnos_implicados);
   const [editDocs, setEditDocs] = useState<Documento[]>(request.documentos_adjuntos);
   const [newFiles, setNewFiles] = useState<{file: File, type?: string}[]>([]);
   
-  // Edit Fields specific
   const [editMotivo, setEditMotivo] = useState<string>(request.motivo || '');
   const [editMotivoOtros, setEditMotivoOtros] = useState<string>(request.motivo_otros || '');
   const [editFeoeInicio, setEditFeoeInicio] = useState(request.feoe_inicio || '');
@@ -71,14 +69,11 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
   const [editNumeroConvenio, setEditNumeroConvenio] = useState(request.numero_convenio || '');
   const [editOrganismoPublico, setEditOrganismoPublico] = useState(request.organismo_publico || '');
   
-  // Edit Fields IV-B
   const [editTutorDestino, setEditTutorDestino] = useState(request.tutor_dual_destino || '');
   const [editCentroDestino, setEditCentroDestino] = useState(request.centro_destino_codigo || '');
 
-  // Edit Fields V
   const [editCursoDual, setEditCursoDual] = useState(request.curso_dual || '');
 
-  // Edit Fields VIII-A y VIII-B
   const [editExtraCondicion, setEditExtraCondicion] = useState(request.condicion_extraordinaria || '');
   const [editExtraJustificacion, setEditExtraJustificacion] = useState(request.justificacion_extraordinaria || '');
   const [editEmpresaNombre, setEditEmpresaNombre] = useState(request.empresa_nombre || '');
@@ -87,18 +82,14 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
   const [editEmpresaDireccion, setEditEmpresaDireccion] = useState(request.empresa_direccion_extranjera || '');
   const [editTutorEmpresa, setEditTutorEmpresa] = useState(request.tutor_empresa || '');
 
-  // Edit Fields XIII
   const [editNefeJustificacion, setEditNefeJustificacion] = useState(request.justificacion_nefe || '');
   
-  // Admin states
   const [adminTargetState, setAdminTargetState] = useState<Estado>(request.estado);
   const [adminReason, setAdminReason] = useState('');
 
-  // Anulation Request State
   const [isRequestingAnulation, setIsRequestingAnulation] = useState(false);
   const [anulationReason, setAnulationReason] = useState('');
 
-  // Delete Modal State
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 
   const centro = centros.find(c => c.codigo === request.codigo_centro);
@@ -110,9 +101,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
 
   const canInspect = user.rol === Rol.INSPECTOR && request.estado === Estado.PENDIENTE_INSPECCION;
   
-  // Lógica de Resolución:
-  // DG solo ve si es PENDIENTE_RESOLUCION_DG
-  // Delegado solo ve si es PENDIENTE_RESOLUCION_DELEGACION
   const canResolve = (user.rol === Rol.DG && request.estado === Estado.PENDIENTE_RESOLUCION_DG) ||
                      (user.rol === Rol.DELEGADO && request.estado === Estado.PENDIENTE_RESOLUCION_DELEGACION) ||
                      (user.rol === Rol.SUPERUSER && (request.estado === Estado.PENDIENTE_RESOLUCION_DG || request.estado === Estado.PENDIENTE_RESOLUCION_DELEGACION));
@@ -167,8 +155,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
       alert("Debe indicar observaciones si el informe es desfavorable.");
       return;
     }
-    // Si es favorable, calculamos el destino (DG o DELEGACION).
-    // Si es desfavorable, también pasa a resolución (normalmente para ser denegada).
     const nuevoEstado = getTargetResolutionState(request.tipo_anexo);
     
     const accion = favorable ? "Informe Favorable de Inspección" : "Informe Desfavorable de Inspección";
@@ -200,7 +186,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
   };
   
   const handleSaveChanges = () => {
-    // Validaciones
     if (request.tipo_anexo === TipoAnexo.ANEXO_I) {
        if (!editMotivo) { alert("Motivo obligatorio."); return; }
        if (editMotivo === 'Otros' && !editMotivoOtros) { alert("Especifique 'Otros'."); return; }
@@ -326,8 +311,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
   };
 
   const handleSendToInspection = () => {
-      // Determinamos si va a inspección o directo a resolución
-      // Lógica similar a RequestForm pero para cuando ya existe como Borrador
       const requiresInspection = 
         request.tipo_anexo === TipoAnexo.ANEXO_I || 
         request.tipo_anexo === TipoAnexo.ANEXO_VIII_A || 
@@ -374,7 +357,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
         return false;
     };
 
-    // --- Header ---
     doc.setFontSize(16);
     doc.setFont("helvetica", "bold");
     doc.text("Consejería de Educación - FEOE", pageWidth / 2, y, { align: "center" });
@@ -387,7 +369,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
     doc.line(margin, y, pageWidth - margin, y);
     y += 10;
     
-    // --- Detalles Básicos ---
     doc.setFontSize(10);
     const printField = (label: string, value: string) => {
         checkPageBreak(lineHeight);
@@ -409,7 +390,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
 
     y += 5;
 
-    // --- Campos Específicos ---
     if (request.tipo_anexo === TipoAnexo.ANEXO_I && request.motivo) {
         printField("Motivo:", request.motivo);
         if(request.motivo_otros) printField("Detalle:", request.motivo_otros);
@@ -463,7 +443,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
         printField("Justificación NEFE:", request.justificacion_nefe);
     }
     
-    // --- Alumnos ---
     y += 5;
     checkPageBreak(lineHeight * 2);
     doc.setFont("helvetica", "bold"); 
@@ -477,7 +456,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
         y += lineHeight;
     });
 
-    // --- Historial Completo ---
     y += 10;
     checkPageBreak(lineHeight * 2);
     doc.setLineWidth(0.5);
@@ -491,12 +469,11 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
     doc.setFontSize(10);
 
     request.historial.forEach((entry, index) => {
-        const neededHeight = lineHeight * 4; // Estimación base por entrada
+        const neededHeight = lineHeight * 4; 
         checkPageBreak(neededHeight);
 
-        // Header de la entrada
         doc.setFont("helvetica", "bold");
-        doc.setFillColor(240, 240, 240); // Gris claro
+        doc.setFillColor(240, 240, 240); 
         doc.rect(margin, y - 5, maxLineWidth, 6, 'F');
         doc.text(`${new Date(entry.fecha).toLocaleString()} - ${entry.accion}`, margin + 2, y);
         
@@ -512,7 +489,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
             doc.setFont("helvetica", "italic");
             const splitObs = doc.splitTextToSize(obsPrefix + entry.observaciones, maxLineWidth - 10);
             
-            // Checkear si las observaciones caben
             if (y + (splitObs.length * lineHeight) > pageHeight - margin) {
                 doc.addPage();
                 y = margin;
@@ -521,10 +497,9 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
             doc.text(splitObs, margin + 5, y);
             y += (splitObs.length * lineHeight);
         }
-        y += 5; // Separador
+        y += 5;
     });
 
-    // --- Firma Final ---
     y += 15;
     checkPageBreak(lineHeight * 4);
     doc.setFont("helvetica", "normal");
@@ -540,9 +515,8 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
   const isAnexoVIII = request.tipo_anexo === TipoAnexo.ANEXO_VIII_A || request.tipo_anexo === TipoAnexo.ANEXO_VIII_B;
 
   return (
-    <div className="bg-white shadow-xl rounded-lg border border-gray-200 flex flex-col h-full max-w-5xl mx-auto relative">
+    <div className="bg-white shadow-xl rounded-lg border border-gray-200 flex flex-col h-full w-full max-w-5xl mx-auto relative">
       
-      {/* MODAL DE CONFIRMACIÓN DE BORRADO */}
       {deleteModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4 animate-in fade-in duration-200">
               <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 border border-gray-200 transform scale-100 transition-transform">
@@ -574,13 +548,13 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
       )}
 
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+      <div className="px-4 sm:px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-gray-50 space-y-3 sm:space-y-0">
         <div>
-          <h2 className="text-lg font-bold text-gray-800">{request.tipo_anexo.split(' - ')[0]}</h2>
-          <p className="text-xs text-gray-500 mt-1">{request.tipo_anexo.split(' - ')[1] || ''}</p>
+          <h2 className="text-lg font-bold text-gray-800 break-words">{request.tipo_anexo.split(' - ')[0]}</h2>
+          <p className="text-xs text-gray-500 mt-1 truncate max-w-xs">{request.tipo_anexo.split(' - ')[1] || ''}</p>
           <p className="text-sm text-gray-500 mt-1">ID: {request.id} | {centro?.nombre || 'Centro Desconocido'}</p>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-2">
              <button onClick={generatePDF} className="flex items-center text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 px-3 py-1.5 rounded text-sm shadow-sm transition-colors">
                 <Download className="h-4 w-4 mr-2" /> PDF
             </button>
@@ -603,19 +577,18 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* Left Col: Data */}
         <div className="lg:col-span-2 space-y-6">
           
-          {/* FEOE Periodo (Anexo II y XIII) */}
           {(request.tipo_anexo === TipoAnexo.ANEXO_II || request.tipo_anexo === TipoAnexo.ANEXO_XIII || isEditing) && (request.tipo_anexo === TipoAnexo.ANEXO_II || request.tipo_anexo === TipoAnexo.ANEXO_XIII) && (
              <section className={`${request.tipo_anexo === TipoAnexo.ANEXO_II ? 'bg-purple-50 border-purple-100' : 'bg-pink-50 border-pink-100'} border p-4 rounded-md`}>
                  <h3 className={`text-sm font-semibold ${request.tipo_anexo === TipoAnexo.ANEXO_II ? 'text-purple-800' : 'text-pink-800'} uppercase tracking-wider mb-3 flex items-center`}>
                      <Calendar className="h-4 w-4 mr-2" /> Periodo FEOE
                  </h3>
                  {isEditing ? (
-                     <div className="grid grid-cols-2 gap-4">
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                          <div>
                              <label className="block text-xs text-gray-500 mb-1">Inicio</label>
                              <input type="date" value={editFeoeInicio} onChange={e => setEditFeoeInicio(e.target.value)} className="w-full text-sm border p-1 rounded" />
@@ -633,7 +606,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
              </section>
           )}
 
-           {/* Anexo XIII Details */}
            {(request.tipo_anexo === TipoAnexo.ANEXO_XIII || isEditing) && request.tipo_anexo === TipoAnexo.ANEXO_XIII && (
              <section className="bg-pink-50 border border-pink-100 p-4 rounded-md mt-4">
                  <h3 className="text-sm font-semibold text-pink-800 uppercase tracking-wider mb-3 flex items-center">
@@ -656,7 +628,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
              </section>
            )}
 
-          {/* Anexo IV-A Details */}
           {(request.tipo_anexo === TipoAnexo.ANEXO_IV_A || isEditing) && request.tipo_anexo === TipoAnexo.ANEXO_IV_A && (
             <section className="bg-amber-50 border border-amber-100 p-4 rounded-md">
                 <h3 className="text-sm font-semibold text-amber-800 uppercase tracking-wider mb-3 flex items-center">
@@ -699,7 +670,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
             </section>
           )}
 
-           {/* Anexo IV-B Details */}
            {(request.tipo_anexo === TipoAnexo.ANEXO_IV_B || isEditing) && request.tipo_anexo === TipoAnexo.ANEXO_IV_B && (
             <section className="bg-teal-50 border border-teal-100 p-4 rounded-md">
                 <h3 className="text-sm font-semibold text-teal-800 uppercase tracking-wider mb-3 flex items-center">
@@ -745,7 +715,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
             </section>
           )}
 
-          {/* Anexo V Details */}
           {(request.tipo_anexo === TipoAnexo.ANEXO_V || isEditing) && request.tipo_anexo === TipoAnexo.ANEXO_V && (
             <section className="bg-indigo-50 border border-indigo-100 p-4 rounded-md">
                 <h3 className="text-sm font-semibold text-indigo-800 uppercase tracking-wider mb-3 flex items-center">
@@ -778,7 +747,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
             </section>
           )}
 
-          {/* Anexo VIII-A y VIII-B Details */}
           {(isAnexoVIII || isEditing) && isAnexoVIII && (
             <section className="bg-orange-50 border border-orange-100 p-4 rounded-md">
                 <h3 className="text-sm font-semibold text-orange-800 uppercase tracking-wider mb-3 flex items-center">
@@ -815,7 +783,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
                             />
                         </div>
                         <div className="border-t pt-2 mt-2">
-                             <div className="grid grid-cols-2 gap-2">
+                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                                 <div>
                                     <label className="block text-xs text-gray-500 mb-1">Empresa</label>
                                     <input type="text" value={editEmpresaNombre} onChange={e => setEditEmpresaNombre(e.target.value)} className="w-full text-sm border p-1 rounded" />
@@ -853,7 +821,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
                                  <p className="text-xs text-gray-600 mt-1 italic">"{request.justificacion_extraordinaria}"</p>
                              )}
                          </div>
-                         <div className="grid grid-cols-2 gap-2 border-t border-orange-200 pt-2">
+                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 border-t border-orange-200 pt-2">
                              <div>
                                  <p className="text-xs text-gray-500 uppercase">Empresa</p>
                                  <p className="text-sm font-medium">{request.empresa_nombre}</p>
@@ -877,7 +845,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
             </section>
           )}
 
-          {/* Motivo (Anexo I) */}
           {request.tipo_anexo === TipoAnexo.ANEXO_I && (
              <section className="bg-blue-50 border border-blue-100 p-4 rounded-md">
                 <h3 className="text-sm font-semibold text-blue-800 uppercase tracking-wider mb-2">Motivo</h3>
@@ -965,15 +932,16 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
             <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Documentos</h3>
             {showDocs ? (
             <div className="space-y-2">
-                {/* Existing Docs */}
                 {(!isEditing ? request.documentos_adjuntos : editDocs).map((doc, idx) => (
                     <div key={idx} className="flex items-center justify-between px-3 py-2 bg-gray-50 rounded border text-sm">
-                        <div className="flex items-center">
-                            <FileText className="h-4 w-4 mr-2 text-gray-400" />
-                            <span className="font-medium text-gray-700">{doc.nombre}</span>
-                            {doc.tipo && <span className="ml-2 bg-purple-100 text-purple-700 text-[10px] px-1 rounded font-bold">{doc.tipo}</span>}
+                        <div className="flex items-center overflow-hidden">
+                            <FileText className="h-4 w-4 mr-2 text-gray-400 flex-shrink-0" />
+                            <div className="truncate">
+                                <span className="font-medium text-gray-700 truncate">{doc.nombre}</span>
+                                {doc.tipo && <span className="ml-2 bg-purple-100 text-purple-700 text-[10px] px-1 rounded font-bold">{doc.tipo}</span>}
+                            </div>
                         </div>
-                        <div className="flex space-x-1">
+                        <div className="flex space-x-1 ml-2">
                             <button onClick={() => viewDocument(doc)} className="text-gray-500 hover:text-rayuela-600 p-1"><Eye className="h-4 w-4" /></button>
                             {isEditing && (
                                 <button onClick={() => removeExistingDoc(idx)} className="text-gray-500 hover:text-red-600 p-1"><Trash2 className="h-4 w-4" /></button>
@@ -982,10 +950,9 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
                     </div>
                 ))}
                 
-                {/* New Files Pending Upload */}
                 {isEditing && newFiles.map((nf, idx) => (
                     <div key={`new-${idx}`} className="flex items-center justify-between px-3 py-2 bg-green-50 rounded border border-green-200 text-sm">
-                        <span className="text-green-700 flex items-center">
+                        <span className="text-green-700 flex items-center truncate">
                             <Upload className="h-3 w-3 mr-2" /> {nf.file.name} {nf.type && `(${nf.type})`}
                         </span>
                         <button onClick={() => setNewFiles(newFiles.filter((_, i) => i !== idx))} className="text-red-500 hover:text-red-700"><Trash2 className="h-4 w-4" /></button>
@@ -993,7 +960,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
                 ))}
 
                 {isEditing && (
-                    <div className="flex gap-2 mt-2">
+                    <div className="flex flex-wrap gap-2 mt-2">
                          <label className="cursor-pointer bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded text-xs flex items-center border">
                             <Upload className="h-3 w-3 mr-1" /> Añadir Archivo
                             <input type="file" className="hidden" onChange={(e) => handleAddNewFile(e)} />
@@ -1040,7 +1007,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
                 </div>
            </div>
 
-          {/* FIRMAS / TRAZABILIDAD SECTION */}
           <section className="border-t pt-4 mt-4">
               <div className="flex items-center mb-3">
                   <ClipboardSignature className="h-5 w-5 text-gray-400 mr-2" />
@@ -1085,14 +1051,13 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
               </div>
           </section>
 
-          {/* Timeline */}
           <section className="border-t pt-4 mt-4">
                <div className="flex items-center mb-4"><History className="h-5 w-5 text-gray-400 mr-2" /><h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Historial</h3></div>
                <div className="relative border-l-2 border-gray-200 ml-3 space-y-6 pb-2">
                  {request.historial?.map((entry, idx) => (
                    <div key={idx} className="relative pl-8">
                      <div className="absolute -left-[9px] top-0 h-4 w-4 rounded-full bg-white border-2 border-rayuela-500"></div>
-                     <div className="flex justify-between mb-1"><span className="font-bold text-gray-800 text-sm">{entry.accion}</span><span className="text-xs text-gray-400">{formatDate(entry.fecha)}</span></div>
+                     <div className="flex flex-col sm:flex-row justify-between mb-1"><span className="font-bold text-gray-800 text-sm">{entry.accion}</span><span className="text-xs text-gray-400">{formatDate(entry.fecha)}</span></div>
                      <div className="text-xs text-rayuela-700 mb-2"><User className="h-3 w-3 inline mr-1" />{entry.autor} ({entry.rol})</div>
                      {entry.observaciones && <div className="bg-yellow-50 p-3 rounded text-sm text-gray-700 italic">"{entry.observaciones}"</div>}
                    </div>
@@ -1163,7 +1128,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
                  )}
              </div>
 
-             {/* ADMIN / SUPERUSER ZONE */}
              {isSuperUser && (
                <div className="mt-8 border-t-2 border-red-200 pt-4 bg-red-50 rounded-lg p-4">
                  <div className="flex items-center text-red-800 font-bold text-sm mb-3"><ShieldAlert className="h-4 w-4 mr-2" /> Admin Zone</div>
