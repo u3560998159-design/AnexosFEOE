@@ -1,13 +1,13 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Solicitud, Usuario, Rol, Estado, TipoAnexo, Centro, Alumno } from '../types';
 import { getResolverRole } from '../constants';
-import { Plus, Eye, Clock, ArrowUpDown, ArrowUp, ArrowDown, Search, AlertTriangle } from 'lucide-react';
+import { Plus, Eye, Clock, ArrowUpDown, ArrowUp, ArrowDown, Search, AlertTriangle, Trash2, Ban, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface DashboardProps {
   user: Usuario;
   requests: Solicitud[];
-  centros: Centro[]; // Nueva prop
-  alumnos: Alumno[]; // Nueva prop
+  centros: Centro[]; 
+  alumnos: Alumno[]; 
   onNewRequest: () => void;
   onSelectRequest: (req: Solicitud) => void;
 }
@@ -17,6 +17,8 @@ interface SortConfig {
   key: SortKey;
   direction: 'asc' | 'desc';
 }
+
+const ITEMS_PER_PAGE = 10;
 
 export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, alumnos, onNewRequest, onSelectRequest }) => {
   const [filterEstado, setFilterEstado] = useState<string>('ALL');
@@ -29,19 +31,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
   // Configuración de ordenación
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'fecha', direction: 'desc' });
 
+  // Estado de Paginación
+  const [currentPage, setCurrentPage] = useState(1);
+
   const getCentro = (code: string) => centros.find(c => c.codigo === code);
   
-  // Helper para buscar nombres de alumnos usando la lista dinámica
   const getNombresAlumnos = (ids: string[]) => {
     return alumnos.filter(a => ids.includes(a.dni)).map(a => `${a.nombre} ${a.apellidos}`).join(', ');
   };
 
-  // Helper para detectar si es "Antigua" (más de 10 días desde el último cambio)
   const isStaleRequest = (req: Solicitud) => {
-      // Si está resuelta (finalizada), no aplicamos la alerta de retraso
-      if (req.estado === Estado.RESUELTA_POSITIVA || req.estado === Estado.RESUELTA_NEGATIVA) return false;
+      if (req.estado === Estado.RESUELTA_POSITIVA || req.estado === Estado.RESUELTA_NEGATIVA || req.estado === Estado.ANULADA) return false;
 
-      // Obtenemos la fecha del último movimiento del historial o la de creación
       const lastEntry = req.historial.length > 0 ? req.historial[req.historial.length - 1] : null;
       const dateString = lastEntry ? lastEntry.fecha : req.fecha_creacion;
       
@@ -73,22 +74,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
     let result = requests.filter(req => {
       const centro = getCentro(req.codigo_centro);
       
-      // 1. Permisos por Rol
+      // 1. Permisos por Rol Generales
       if (user.rol === Rol.DIRECTOR) {
         if (req.codigo_centro !== user.codigo_centro) return false;
       }
       
       if (user.rol === Rol.INSPECTOR) {
         if (centro?.provincia !== user.provincia) return false;
-        // Inspectores solo ven Anexos VIII (que son los que inspeccionan) o podrían ver todos para info, 
-        // pero la acción es sobre los VIII. Por ahora mostramos todos los de la provincia.
       }
 
       if (user.rol === Rol.DELEGADO) {
         if (centro?.provincia !== user.provincia) return false;
       }
 
-      // 2. Filtros de Columna (Selects y Textos)
+      // 2. Regla de Visibilidad PENDIENTE_ANULACION
+      if (req.estado === Estado.PENDIENTE_ANULACION) {
+          if (user.rol !== Rol.SUPERUSER && req.solicitante_anulacion !== user.id) {
+              return false;
+          }
+      }
+
+      // 3. Filtros de Columna
       if (filterEstado !== 'ALL' && req.estado !== filterEstado) return false;
       if (filterTipo !== 'ALL' && req.tipo_anexo !== filterTipo) return false;
 
@@ -141,17 +147,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
     return result;
   }, [requests, user, filterEstado, filterTipo, filterCentroText, filterAlumnoText, sortConfig, centros, alumnos]);
 
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filterEstado, filterTipo, filterCentroText, filterAlumnoText]);
+
+  // Lógica de Paginación
+  const indexOfLastItem = currentPage * ITEMS_PER_PAGE;
+  const indexOfFirstItem = indexOfLastItem - ITEMS_PER_PAGE;
+  const currentItems = processedRequests.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(processedRequests.length / ITEMS_PER_PAGE);
+
   const pendingCount = processedRequests.filter(r => {
+    if (r.estado === Estado.ANULADA) return false;
+    if (user.rol === Rol.SUPERUSER && r.estado === Estado.PENDIENTE_ANULACION) return true;
     if (user.rol === Rol.INSPECTOR) return r.estado === Estado.PENDIENTE_INSPECCION;
     
     if (user.rol === Rol.DG) {
-        // DG resuelve I, II, IV_B, V, VIII-B, XIII
         if (r.estado !== Estado.PENDIENTE_RESOLUCION) return false;
         return getResolverRole(r.tipo_anexo) === Rol.DG;
     }
     
     if (user.rol === Rol.DELEGADO) {
-        // Delegado resuelve IV_A y VIII-A
         if (r.estado !== Estado.PENDIENTE_RESOLUCION) return false;
         return getResolverRole(r.tipo_anexo) === Rol.DELEGADO;
     }
@@ -165,6 +182,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
       [Estado.PENDIENTE_RESOLUCION]: "bg-purple-100 text-purple-800",
       [Estado.RESUELTA_POSITIVA]: "bg-green-100 text-green-800",
       [Estado.RESUELTA_NEGATIVA]: "bg-red-100 text-red-800",
+      [Estado.PENDIENTE_ANULACION]: "bg-orange-100 text-orange-800 border border-orange-200",
+      [Estado.ANULADA]: "bg-gray-600 text-white line-through"
     };
     return (
       <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${styles[estado]}`}>
@@ -201,160 +220,230 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
       </div>
 
       {/* Table */}
-      <div className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              {/* ID / FECHA Header */}
-              <th 
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                onClick={() => handleSort('fecha')}
-              >
-                <div className="flex items-center h-full">
-                  ID / Fecha <SortIcon colKey="fecha" />
-                </div>
-              </th>
-
-              {/* CENTRO Header con Filtro */}
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                <div 
-                  className="flex items-center cursor-pointer hover:text-rayuela-700 mb-2"
-                  onClick={() => handleSort('centro')}
-                >
-                  Centro <SortIcon colKey="centro" />
-                </div>
-                <div className="relative">
-                  <input 
-                    type="text" 
-                    placeholder="Filtrar centro..." 
-                    className="w-full text-xs p-1 pl-6 border rounded font-normal text-gray-700 focus:outline-none focus:border-rayuela-500"
-                    value={filterCentroText}
-                    onChange={(e) => setFilterCentroText(e.target.value)}
-                  />
-                  <Search className="h-3 w-3 text-gray-400 absolute left-1.5 top-1.5" />
-                </div>
-              </th>
-
-              {/* TIPO ANEXO Header con Filtro */}
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                <div 
-                  className="flex items-center cursor-pointer hover:text-rayuela-700 mb-2"
-                  onClick={() => handleSort('tipo')}
-                >
-                  Tipo Anexo <SortIcon colKey="tipo" />
-                </div>
-                <select 
-                  value={filterTipo}
-                  onChange={(e) => setFilterTipo(e.target.value)}
-                  className="w-full text-xs p-1 border rounded font-normal text-gray-700 focus:outline-none focus:border-rayuela-500"
-                >
-                  <option value="ALL">Todos los Anexos</option>
-                  {Object.values(TipoAnexo).map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </th>
-
-              {/* ALUMNOS Header con Filtro */}
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                 <div className="flex items-center mb-2">
-                  Alumnos
-                </div>
-                <div className="relative">
-                  <input 
-                    type="text" 
-                    placeholder="Buscar alumno..." 
-                    className="w-full text-xs p-1 pl-6 border rounded font-normal text-gray-700 focus:outline-none focus:border-rayuela-500"
-                    value={filterAlumnoText}
-                    onChange={(e) => setFilterAlumnoText(e.target.value)}
-                  />
-                  <Search className="h-3 w-3 text-gray-400 absolute left-1.5 top-1.5" />
-                </div>
-              </th>
-
-              {/* ESTADO Header con Filtro */}
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                <div 
-                  className="flex items-center cursor-pointer hover:text-rayuela-700 mb-2"
-                  onClick={() => handleSort('estado')}
-                >
-                  Estado <SortIcon colKey="estado" />
-                </div>
-                <select 
-                  value={filterEstado}
-                  onChange={(e) => setFilterEstado(e.target.value)}
-                  className="w-full text-xs p-1 border rounded font-normal text-gray-700 focus:outline-none focus:border-rayuela-500"
-                >
-                  <option value="ALL">Todos los Estados</option>
-                  {Object.values(Estado).map(e => <option key={e} value={e}>{e.replace(/_/g, ' ')}</option>)}
-                </select>
-              </th>
-
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {processedRequests.length === 0 ? (
+      <div className="bg-white shadow rounded-lg overflow-hidden border border-gray-200 flex flex-col">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-gray-500 text-sm">
-                  No hay solicitudes que coincidan con los filtros.
-                </td>
+                {/* ID / FECHA Header */}
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('fecha')}
+                >
+                  <div className="flex items-center h-full">
+                    ID / Fecha <SortIcon colKey="fecha" />
+                  </div>
+                </th>
+
+                {/* CENTRO Header con Filtro */}
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <div 
+                    className="flex items-center cursor-pointer hover:text-rayuela-700 mb-2"
+                    onClick={() => handleSort('centro')}
+                  >
+                    Centro <SortIcon colKey="centro" />
+                  </div>
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      placeholder="Filtrar centro..." 
+                      className="w-full text-xs p-1 pl-6 border rounded font-normal text-gray-700 focus:outline-none focus:border-rayuela-500"
+                      value={filterCentroText}
+                      onChange={(e) => setFilterCentroText(e.target.value)}
+                    />
+                    <Search className="h-3 w-3 text-gray-400 absolute left-1.5 top-1.5" />
+                  </div>
+                </th>
+
+                {/* TIPO ANEXO Header con Filtro */}
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <div 
+                    className="flex items-center cursor-pointer hover:text-rayuela-700 mb-2"
+                    onClick={() => handleSort('tipo')}
+                  >
+                    Tipo Anexo <SortIcon colKey="tipo" />
+                  </div>
+                  <select 
+                    value={filterTipo}
+                    onChange={(e) => setFilterTipo(e.target.value)}
+                    className="w-full text-xs p-1 border rounded font-normal text-gray-700 focus:outline-none focus:border-rayuela-500"
+                  >
+                    <option value="ALL">Todos los Anexos</option>
+                    {Object.values(TipoAnexo).map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </th>
+
+                {/* ALUMNOS Header con Filtro */}
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                   <div className="flex items-center mb-2">
+                    Alumnos
+                  </div>
+                  <div className="relative">
+                    <input 
+                      type="text" 
+                      placeholder="Buscar alumno..." 
+                      className="w-full text-xs p-1 pl-6 border rounded font-normal text-gray-700 focus:outline-none focus:border-rayuela-500"
+                      value={filterAlumnoText}
+                      onChange={(e) => setFilterAlumnoText(e.target.value)}
+                    />
+                    <Search className="h-3 w-3 text-gray-400 absolute left-1.5 top-1.5" />
+                  </div>
+                </th>
+
+                {/* ESTADO Header con Filtro */}
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <div 
+                    className="flex items-center cursor-pointer hover:text-rayuela-700 mb-2"
+                    onClick={() => handleSort('estado')}
+                  >
+                    Estado <SortIcon colKey="estado" />
+                  </div>
+                  <select 
+                    value={filterEstado}
+                    onChange={(e) => setFilterEstado(e.target.value)}
+                    className="w-full text-xs p-1 border rounded font-normal text-gray-700 focus:outline-none focus:border-rayuela-500"
+                  >
+                    <option value="ALL">Todos los Estados</option>
+                    {Object.values(Estado).map(e => <option key={e} value={e}>{e.replace(/_/g, ' ')}</option>)}
+                  </select>
+                </th>
+
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
-            ) : (
-              processedRequests.map((req) => {
-                const centro = getCentro(req.codigo_centro);
-                const isStale = isStaleRequest(req);
-                return (
-                  <tr key={req.id} className={`hover:bg-gray-50 transition-colors ${isStale ? 'bg-red-50 border-l-4 border-red-500' : ''}`}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                          {isStale && <AlertTriangle className="h-4 w-4 text-red-500 mr-2" title="Solicitud parada (+10 días)" />}
-                          <div>
-                            <div className="text-sm font-medium text-rayuela-700">{req.id}</div>
-                            <div className="text-xs text-gray-500">{req.fecha_creacion}</div>
-                          </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{centro?.nombre || 'Desconocido'}</div>
-                      <div className="text-xs text-gray-500">{centro?.localidad || ''}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                      {req.tipo_anexo.split('(')[0].trim()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {req.alumnos_implicados.length > 0 ? (
-                        <div className="flex flex-col">
-                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 w-fit mb-1">
-                            {req.alumnos_implicados.length} alumnos
-                          </span>
-                          {filterAlumnoText && (
-                              <span className="text-[10px] text-rayuela-600 truncate max-w-[150px]">
-                                {getNombresAlumnos(req.alumnos_implicados)}
-                              </span>
-                          )}
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {processedRequests.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500 text-sm">
+                    No hay solicitudes que coincidan con los filtros.
+                  </td>
+                </tr>
+              ) : (
+                currentItems.map((req) => {
+                  const centro = getCentro(req.codigo_centro);
+                  const isStale = isStaleRequest(req);
+                  const isAnulada = req.estado === Estado.ANULADA;
+
+                  const rowClass = isAnulada 
+                      ? "bg-gray-100 text-gray-400" 
+                      : `hover:bg-gray-50 transition-colors ${isStale ? 'bg-red-50 border-l-4 border-red-500' : ''}`;
+
+                  return (
+                    <tr key={req.id} className={rowClass}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                            {isStale && <AlertTriangle className="h-4 w-4 text-red-500 mr-2" title="Solicitud parada (+10 días)" />}
+                            <div>
+                              <div className={`text-sm font-medium ${isAnulada ? 'text-gray-500 line-through' : 'text-rayuela-700'}`}>{req.id}</div>
+                              <div className="text-xs opacity-75">{req.fecha_creacion}</div>
+                            </div>
                         </div>
-                      ) : (
-                        <span className="text-xs text-gray-400 italic">Sin alumnos</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(req.estado)}
-                      {isStale && <p className="text-[10px] text-red-600 font-bold mt-1">Revisión atrasada</p>}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button 
-                        onClick={() => onSelectRequest(req)}
-                        className="text-rayuela-700 hover:text-rayuela-900 flex items-center justify-end w-full"
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm">{centro?.nombre || 'Desconocido'}</div>
+                        <div className="text-xs opacity-75">{centro?.localidad || ''}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {req.tipo_anexo.split('(')[0].trim()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {req.alumnos_implicados.length > 0 ? (
+                          <div className="flex flex-col">
+                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium w-fit mb-1 ${isAnulada ? 'bg-gray-200 text-gray-500' : 'bg-gray-100 text-gray-800'}`}>
+                              {req.alumnos_implicados.length} alumnos
+                            </span>
+                            {filterAlumnoText && (
+                                <span className="text-[10px] truncate max-w-[150px]">
+                                  {getNombresAlumnos(req.alumnos_implicados)}
+                                </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs italic">Sin alumnos</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {getStatusBadge(req.estado)}
+                        {isStale && <p className="text-[10px] text-red-600 font-bold mt-1">Revisión atrasada</p>}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button 
+                          onClick={() => onSelectRequest(req)}
+                          className={`${isAnulada ? 'text-gray-500' : 'text-rayuela-700 hover:text-rayuela-900'} flex items-center justify-end w-full`}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Ver
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Paginación */}
+        {processedRequests.length > 0 && (
+          <div className="bg-gray-50 px-4 py-3 border-t border-gray-200 flex items-center justify-between sm:px-6">
+            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+              <div>
+                <p className="text-sm text-gray-700">
+                  Mostrando <span className="font-medium">{indexOfFirstItem + 1}</span> a <span className="font-medium">{Math.min(indexOfLastItem, processedRequests.length)}</span> de <span className="font-medium">{processedRequests.length}</span> resultados
+                </p>
+              </div>
+              <div>
+                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400"
+                  >
+                    <span className="sr-only">Anterior</span>
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  
+                  {Array.from({ length: totalPages }).map((_, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setCurrentPage(idx + 1)}
+                        className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${currentPage === idx + 1 ? 'z-10 bg-rayuela-50 border-rayuela-500 text-rayuela-600' : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'}`}
                       >
-                        <Eye className="h-4 w-4 mr-1" />
-                        Ver
+                        {idx + 1}
                       </button>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
+                  ))}
+
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:bg-gray-100 disabled:text-gray-400"
+                  >
+                    <span className="sr-only">Siguiente</span>
+                    <ChevronRight className="h-5 w-5" />
+                  </button>
+                </nav>
+              </div>
+            </div>
+            {/* Mobile Pagination (Simplified) */}
+            <div className="flex items-center justify-between w-full sm:hidden">
+                <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:bg-gray-100"
+                  >
+                    Anterior
+                  </button>
+                  <span className="text-sm text-gray-700">Pág {currentPage} de {totalPages}</span>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:bg-gray-100"
+                  >
+                    Siguiente
+                  </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

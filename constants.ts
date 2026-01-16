@@ -27,7 +27,7 @@ export const USUARIOS_MOCK: Usuario[] = [
   { id: "superuser", nombre: "Servicios Centrales", rol: Rol.SUPERUSER },
 ];
 
-export const SOLICITUDES_INICIALES: Solicitud[] = [
+const BASE_SOLICITUDES: Solicitud[] = [
   {
     id: "2025-06006899-I-001",
     tipo_anexo: TipoAnexo.ANEXO_I,
@@ -150,6 +150,51 @@ export const SOLICITUDES_INICIALES: Solicitud[] = [
     ]
   }
 ];
+
+// Generar 15 solicitudes mock adicionales para I.E.S. El Brocense (10003789)
+const generateMockRequests = (): Solicitud[] => {
+  const mocks: Solicitud[] = [];
+  const estados = Object.values(Estado);
+  const tipos = Object.values(TipoAnexo);
+  
+  for (let i = 1; i <= 15; i++) {
+    const estadoRandom = estados[i % estados.length];
+    const tipoRandom = tipos[i % tipos.length];
+    const anexoCode = tipoRandom.split(' ')[1] || 'GEN';
+    
+    // Generar fecha escalonada
+    const day = 10 + i;
+    const fecha = `2025-04-${day < 10 ? '0' + day : day}`;
+
+    mocks.push({
+      id: `2025-10003789-${anexoCode}-${i + 100}`, // ID alto para que se vea claro
+      tipo_anexo: tipoRandom,
+      estado: estadoRandom,
+      fecha_creacion: fecha,
+      codigo_centro: "10003789", // El Brocense
+      alumnos_implicados: i % 2 === 0 ? ["87654321X"] : [], // Algunos con alumnos, otros no
+      documentos_adjuntos: [],
+      motivo: tipoRandom === TipoAnexo.ANEXO_I ? "Insuficiencia de plazas formativas..." : undefined,
+      condicion_extraordinaria: tipoRandom === TipoAnexo.ANEXO_VIII_A ? "En días no lectivos" : undefined,
+      empresa_nombre: `Empresa Mock ${i}`,
+      empresa_provincia: "Cáceres",
+      empresa_localidad: "Cáceres",
+      tutor_empresa: "Tutor Mock",
+      historial: [
+        {
+          fecha: `${fecha}T09:00:00.000Z`,
+          autor: "Director Brocense",
+          rol: Rol.DIRECTOR,
+          estado_nuevo: Estado.BORRADOR,
+          accion: "Generación Automática Mock"
+        }
+      ]
+    });
+  }
+  return mocks;
+};
+
+export const SOLICITUDES_INICIALES = [...BASE_SOLICITUDES, ...generateMockRequests()];
 
 // Helper to determine who resolves what
 export const getResolverRole = (tipo: TipoAnexo): Rol | 'AUTO' => {

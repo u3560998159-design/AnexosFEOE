@@ -11,7 +11,9 @@ export enum Estado {
   PENDIENTE_INSPECCION = 'PENDIENTE_INSPECCION',
   PENDIENTE_RESOLUCION = 'PENDIENTE_RESOLUCION',
   RESUELTA_POSITIVA = 'RESUELTA_POSITIVA',
-  RESUELTA_NEGATIVA = 'RESUELTA_NEGATIVA'
+  RESUELTA_NEGATIVA = 'RESUELTA_NEGATIVA',
+  PENDIENTE_ANULACION = 'PENDIENTE_ANULACION',
+  ANULADA = 'ANULADA'
 }
 
 export enum TipoAnexo {
@@ -77,6 +79,9 @@ export interface Solicitud {
   alumnos_implicados: string[]; // DNIs
   documentos_adjuntos: Documento[];
   historial: HistorialEntrada[]; // Nuevo campo de trazabilidad
+  // Campos para control de anulación
+  solicitante_anulacion?: string; // ID del usuario que solicitó anulación
+  
   // Campos específicos Anexo I
   motivo?: string;
   motivo_otros?: string;

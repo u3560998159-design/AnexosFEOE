@@ -33,9 +33,37 @@ const App: React.FC = () => {
 
   const handleCreateRequest = (partialReq: Partial<Solicitud>) => {
     const centroCode = currentUser?.codigo_centro || '00000000';
+    const currentYear = new Date().getFullYear();
+    
+    // Obtenemos el código corto del anexo (ej: "I", "IV-A", "VIII-B")
+    // Viene de "Anexo IV-A - Solicitud..." -> split espacio -> índice 1 es "IV-A"
     const anexoCode = partialReq.tipo_anexo?.split(' ')[1] || 'GEN';
     
-    const newId = `${new Date().getFullYear()}-${centroCode}-${anexoCode}-${requests.length + 1}`;
+    // Lógica de Consecutivo por Centro:
+    // 1. Filtramos todas las solicitudes de ESTE centro y ESTE año.
+    const centerRequests = requests.filter(r => 
+        r.codigo_centro === centroCode && 
+        r.id.startsWith(`${currentYear}-`)
+    );
+
+    // 2. Buscamos el número de secuencia más alto.
+    // El formato del ID es: AÑO-CENTRO-TIPO-NUMERO (El tipo puede tener guiones, el número es siempre el último segmento)
+    let maxSequence = 0;
+    
+    centerRequests.forEach(req => {
+        const parts = req.id.split('-');
+        const lastPart = parts[parts.length - 1]; // El último elemento es la secuencia
+        const seq = parseInt(lastPart, 10);
+        
+        if (!isNaN(seq) && seq > maxSequence) {
+            maxSequence = seq;
+        }
+    });
+
+    // 3. El nuevo número es el máximo encontrado + 1
+    const nextSequence = maxSequence + 1;
+    
+    const newId = `${currentYear}-${centroCode}-${anexoCode}-${nextSequence}`;
     
     const newReq: Solicitud = {
       ...partialReq as Solicitud,
@@ -50,6 +78,12 @@ const App: React.FC = () => {
 
   const handleUpdateRequest = (id: string, updates: Partial<Solicitud>) => {
     setRequests(requests.map(r => r.id === id ? { ...r, ...updates } : r));
+    setView('DASHBOARD');
+    setSelectedRequest(null);
+  };
+
+  const handleDeleteRequest = (id: string) => {
+    setRequests(requests.filter(r => r.id !== id));
     setView('DASHBOARD');
     setSelectedRequest(null);
   };
@@ -75,6 +109,14 @@ const App: React.FC = () => {
   const pendingCount = useMemo(() => {
     if (!currentUser) return 0;
     return requests.filter(req => {
+        // Excluir anuladas del conteo de pendientes
+        if (req.estado === Estado.ANULADA) return false;
+
+        // Pendiente Anulación solo notifica a SUPERUSER
+        if (req.estado === Estado.PENDIENTE_ANULACION) {
+            return currentUser.rol === Rol.SUPERUSER;
+        }
+
         const centro = centros.find(c => c.codigo === req.codigo_centro);
         
         // Inspectores: Solo ven PENDIENTE_INSPECCION (Anexos VIII) de su provincia
@@ -166,6 +208,7 @@ const App: React.FC = () => {
           centros={centros}
           onClose={() => setView('DASHBOARD')}
           onUpdate={handleUpdateRequest}
+          onDelete={handleDeleteRequest}
         />
       )}
 

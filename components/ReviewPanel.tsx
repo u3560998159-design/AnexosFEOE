@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Solicitud, Usuario, Rol, Estado, HistorialEntrada, TipoAnexo, Documento, Alumno, Centro } from '../types';
 import { getResolverRole } from '../constants';
-import { CheckCircle, XCircle, FileText, ArrowLeft, Send, History, User, ShieldAlert, Edit, Save, Trash2, Upload, AlertCircle, Eye, Calendar, UserPlus, Building2, School, GraduationCap, Globe, Download, PenTool, ClipboardSignature } from 'lucide-react';
+import { CheckCircle, XCircle, FileText, ArrowLeft, Send, History, User, ShieldAlert, Edit, Save, Trash2, Upload, AlertCircle, Eye, Calendar, UserPlus, Building2, School, GraduationCap, Globe, Download, PenTool, ClipboardSignature, Ban, Eraser } from 'lucide-react';
 import { jsPDF } from "jspdf";
 
 interface ReviewPanelProps {
@@ -11,6 +11,7 @@ interface ReviewPanelProps {
   centros: Centro[];
   onClose: () => void;
   onUpdate: (id: string, updates: Partial<Solicitud>) => void;
+  onDelete: (id: string) => void;
 }
 
 const MOTIVOS_ANEXO_I = [
@@ -51,7 +52,7 @@ const PROVINCIAS = [
     "Ceuta", "Melilla", "Extranjero"
 ];
 
-export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos: allAlumnos, centros, onClose, onUpdate }) => {
+export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos: allAlumnos, centros, onClose, onUpdate, onDelete }) => {
   const [observaciones, setObservaciones] = useState('');
   
   // Modos de Edición (Director)
@@ -91,6 +92,10 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
   const [adminTargetState, setAdminTargetState] = useState<Estado>(request.estado);
   const [adminReason, setAdminReason] = useState('');
 
+  // Anulation Request State
+  const [isRequestingAnulation, setIsRequestingAnulation] = useState(false);
+  const [anulationReason, setAnulationReason] = useState('');
+
   const centro = centros.find(c => c.codigo === request.codigo_centro);
   const centroDestinoInfo = centros.find(c => c.codigo === request.centro_destino_codigo);
 
@@ -110,16 +115,19 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
   const isSuperUser = user.rol === Rol.SUPERUSER;
   const isDirector = user.rol === Rol.DIRECTOR && user.codigo_centro === request.codigo_centro;
   
-  // Regla: Una vez creada (no BORRADOR), no se puede editar por el director.
   const canEdit = isDirector && request.estado === Estado.BORRADOR;
 
-  // Lógica de Firmas (extraer del historial)
+  const canRequestAnulation = request.estado !== Estado.BORRADOR && 
+                              request.estado !== Estado.ANULADA && 
+                              request.estado !== Estado.PENDIENTE_ANULACION;
+  
+  const canConfirmAnulation = isSuperUser && request.estado === Estado.PENDIENTE_ANULACION;
+
   const getSignatureAction = (actionType: 'CREATION' | 'INSPECTION' | 'RESOLUTION') => {
       const reversedHistory = [...request.historial].reverse();
       let entry: HistorialEntrada | undefined;
 
       if (actionType === 'CREATION') {
-          // Buscamos la primera entrada de creación
           entry = request.historial.find(h => h.accion.includes("Creación"));
       } else if (actionType === 'INSPECTION') {
           entry = reversedHistory.find(h => h.accion.includes("Informe Favorable") || h.accion.includes("Informe Desfavorable"));
@@ -154,8 +162,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
       alert("Debe indicar observaciones si el informe es desfavorable.");
       return;
     }
-    // Lógica Actualizada: Tanto Favorable como Desfavorable pasan al siguiente revisor (Pendiente Resolución).
-    // El informe desfavorable no cierra la solicitud, la eleva para su resolución negativa.
     const nuevoEstado = Estado.PENDIENTE_RESOLUCION; 
     const accion = favorable ? "Informe Favorable de Inspección" : "Informe Desfavorable de Inspección";
 
@@ -168,7 +174,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
   };
 
   const handleResolution = (approved: boolean) => {
-    // VALIDACIÓN OBLIGATORIA: Si se deniega (approved = false), observaciones son obligatorias.
     if (!approved && !observaciones.trim()) {
         alert("Para emitir una Resolución Desestimatoria (Denegada) es OBLIGATORIO indicar la fundamentación legal o motivo en las observaciones.");
         return;
@@ -259,37 +264,11 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
     setIsEditing(false);
   };
 
-  const addEditAlumno = (dni: string) => {
-    if (dni && !editAlumnos.includes(dni)) {
-      setEditAlumnos([...editAlumnos, dni]);
-    }
-  };
-
-  const removeEditAlumno = (dni: string) => {
-    setEditAlumnos(editAlumnos.filter(id => id !== dni));
-  };
-
-  const removeExistingDoc = (index: number) => {
-    if(confirm("¿Seguro que quiere eliminar este documento?")) {
-        const newDocs = [...editDocs];
-        newDocs.splice(index, 1);
-        setEditDocs(newDocs);
-    }
-  };
-
-  const viewDocument = (doc: Documento) => {
-      if (doc.url) {
-          window.open(doc.url, '_blank');
-      } else {
-          alert(`Simulación: Visualizando documento "${doc.nombre}". En un entorno real se abriría el PDF.`);
-      }
-  };
-
-  const handleAddNewFile = (e: React.ChangeEvent<HTMLInputElement>, type?: string) => {
-      if(e.target.files?.[0]) {
-          setNewFiles([...newFiles, { file: e.target.files[0], type }]);
-      }
-  };
+  const addEditAlumno = (dni: string) => { if (dni && !editAlumnos.includes(dni)) setEditAlumnos([...editAlumnos, dni]); };
+  const removeEditAlumno = (dni: string) => { setEditAlumnos(editAlumnos.filter(id => id !== dni)); };
+  const removeExistingDoc = (index: number) => { if(confirm("¿Seguro?")) { const newDocs = [...editDocs]; newDocs.splice(index, 1); setEditDocs(newDocs); } };
+  const handleAddNewFile = (e: React.ChangeEvent<HTMLInputElement>, type?: string) => { if(e.target.files?.[0]) setNewFiles([...newFiles, { file: e.target.files[0], type }]); };
+  const viewDocument = (doc: Documento) => { if (doc.url) window.open(doc.url, '_blank'); else alert(`Simulación: ${doc.nombre}`); };
 
   const handleAdminChange = () => {
     if (!adminReason) { alert("Indique motivo."); return; }
@@ -302,78 +281,214 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
     onClose();
   };
 
+  const handleRequestAnulation = () => {
+      if(!anulationReason.trim()) {
+          alert("Es obligatorio indicar el motivo de la anulación.");
+          return;
+      }
+      onUpdate(request.id, {
+          estado: Estado.PENDIENTE_ANULACION,
+          solicitante_anulacion: user.id,
+          historial: [...request.historial, createHistoryEntry("Solicitud de Anulación", Estado.PENDIENTE_ANULACION, anulationReason)]
+      });
+      setIsRequestingAnulation(false);
+      onClose();
+  };
+
+  const handleConfirmAnulation = () => {
+      onUpdate(request.id, {
+          estado: Estado.ANULADA,
+          historial: [...request.historial, createHistoryEntry("Anulación Confirmada", Estado.ANULADA, "Anulación validada por Servicios Centrales.")]
+      });
+      onClose();
+  };
+
+  const handleDelete = () => {
+      if(confirm("¿ESTÁ SEGURO? Esta acción eliminará permanentemente la solicitud del sistema. No se puede deshacer.")) {
+          onDelete(request.id);
+      }
+  };
+
   const formatDate = (isoString: string) => {
     return new Date(isoString).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   };
 
   const generatePDF = () => {
     const doc = new jsPDF();
-    
-    // Header
+    const pageWidth = doc.internal.pageSize.width;
+    const pageHeight = doc.internal.pageSize.height;
+    const margin = 20;
+    const maxLineWidth = pageWidth - margin * 2;
+    let y = 20;
+    const lineHeight = 7;
+
+    const checkPageBreak = (neededHeight: number) => {
+        if (y + neededHeight > pageHeight - margin) {
+            doc.addPage();
+            y = margin;
+            return true;
+        }
+        return false;
+    };
+
+    // --- Header ---
     doc.setFontSize(16);
-    doc.text("Consejería de Educación - FEOE", 105, 20, { align: "center" });
+    doc.setFont("helvetica", "bold");
+    doc.text("Consejería de Educación - FEOE", pageWidth / 2, y, { align: "center" });
+    y += 10;
     doc.setFontSize(12);
-    doc.text(`Solicitud: ${request.id}`, 105, 30, { align: "center" });
+    doc.text(`Solicitud: ${request.id}`, pageWidth / 2, y, { align: "center" });
+    y += 5;
     
     doc.setLineWidth(0.5);
-    doc.line(20, 35, 190, 35);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
     
-    // Details
+    // --- Detalles Básicos ---
     doc.setFontSize(10);
-    let y = 45;
-    const lineHeight = 7;
-    
-    doc.setFont("helvetica", "bold"); doc.text("Tipo:", 20, y); doc.setFont("helvetica", "normal");
-    doc.text(request.tipo_anexo, 60, y); y += lineHeight;
-    
-    doc.setFont("helvetica", "bold"); doc.text("Estado:", 20, y); doc.setFont("helvetica", "normal");
-    doc.text(request.estado.replace(/_/g, " "), 60, y); y += lineHeight;
-    
-    doc.setFont("helvetica", "bold"); doc.text("Fecha:", 20, y); doc.setFont("helvetica", "normal");
-    doc.text(request.fecha_creacion, 60, y); y += lineHeight;
-    
+    const printField = (label: string, value: string) => {
+        checkPageBreak(lineHeight);
+        doc.setFont("helvetica", "bold");
+        doc.text(label, margin, y);
+        doc.setFont("helvetica", "normal");
+        
+        const splitText = doc.splitTextToSize(value, maxLineWidth - 40);
+        doc.text(splitText, margin + 40, y);
+        y += (splitText.length * lineHeight);
+    };
+
+    printField("Tipo:", request.tipo_anexo);
+    printField("Estado:", request.estado.replace(/_/g, " "));
+    printField("Fecha:", request.fecha_creacion);
     if (centro) {
-        doc.setFont("helvetica", "bold"); doc.text("Centro:", 20, y); doc.setFont("helvetica", "normal");
-        doc.text(`${centro.nombre} (${centro.localidad})`, 60, y); y += lineHeight;
+        printField("Centro:", `${centro.nombre} (${centro.localidad})`);
     }
 
     y += 5;
 
-    // Campos específicos según tipo
+    // --- Campos Específicos ---
     if (request.tipo_anexo === TipoAnexo.ANEXO_I && request.motivo) {
-        doc.setFont("helvetica", "bold"); doc.text("Motivo:", 20, y); doc.setFont("helvetica", "normal");
-        doc.text(request.motivo, 60, y); y += lineHeight;
-        if(request.motivo_otros) {
-            doc.text(`Detalle: ${request.motivo_otros}`, 60, y); y += lineHeight;
-        }
+        printField("Motivo:", request.motivo);
+        if(request.motivo_otros) printField("Detalle:", request.motivo_otros);
     }
     
     if (request.feoe_inicio) {
-         doc.setFont("helvetica", "bold"); doc.text("Periodo FEOE:", 20, y); doc.setFont("helvetica", "normal");
-         doc.text(`Del ${request.feoe_inicio} al ${request.feoe_fin}`, 60, y); y += lineHeight;
+         printField("Periodo FEOE:", `Del ${request.feoe_inicio} al ${request.feoe_fin}`);
+    }
+
+    if (request.numero_convenio) {
+        printField("Convenio:", request.numero_convenio);
+    }
+    if (request.organismo_publico) {
+        printField("Organismo:", request.organismo_publico);
+    }
+
+    if (request.tutor_dual_destino) {
+        printField("Tutor Dual:", request.tutor_dual_destino);
+    }
+    if (request.centro_destino_codigo) {
+        const cDest = centros.find(c => c.codigo === request.centro_destino_codigo);
+        printField("Centro Destino:", cDest ? cDest.nombre : request.centro_destino_codigo);
+    }
+
+    if (request.curso_dual) {
+        printField("Ciclo Dual:", request.curso_dual);
+    }
+
+    if (request.condicion_extraordinaria) {
+        printField("Condición:", request.condicion_extraordinaria);
+    }
+    if (request.justificacion_extraordinaria) {
+        printField("Justificación:", request.justificacion_extraordinaria);
+    }
+    
+    if (request.empresa_nombre) {
+        y += 5;
+        doc.setFont("helvetica", "bold");
+        checkPageBreak(lineHeight);
+        doc.text("Datos de la Empresa/Entidad:", margin, y);
+        y += lineHeight;
+        printField("Nombre:", request.empresa_nombre);
+        printField("Ubicación:", `${request.empresa_localidad} (${request.empresa_provincia})`);
+        printField("Tutor:", request.tutor_empresa || '---');
+        if (request.empresa_direccion_extranjera) {
+            printField("Dirección:", request.empresa_direccion_extranjera);
+        }
     }
     
     if (request.justificacion_nefe) {
-        doc.setFont("helvetica", "bold"); doc.text("Justificación NEFE:", 20, y); doc.setFont("helvetica", "normal");
-        const splitText = doc.splitTextToSize(request.justificacion_nefe, 130);
-        doc.text(splitText, 60, y);
-        y += (splitText.length * lineHeight);
+        printField("Justificación NEFE:", request.justificacion_nefe);
     }
     
-    // Alumnos
+    // --- Alumnos ---
     y += 5;
-    doc.setFont("helvetica", "bold"); doc.text("Alumnos Implicados:", 20, y); y += lineHeight;
+    checkPageBreak(lineHeight * 2);
+    doc.setFont("helvetica", "bold"); 
+    doc.text("Alumnos Implicados:", margin, y); 
+    y += lineHeight;
     doc.setFont("helvetica", "normal");
+    
     alumnosSolicitud.forEach(a => {
-        doc.text(`- ${a.apellidos}, ${a.nombre} (${a.dni}) - ${a.curso}`, 25, y);
+        checkPageBreak(lineHeight);
+        doc.text(`- ${a.apellidos}, ${a.nombre} (${a.dni}) - ${a.curso}`, margin + 5, y);
         y += lineHeight;
     });
 
-    // Firma
-    y += 20;
-    doc.text("Firmado:", 20, y);
+    // --- Historial Completo ---
+    y += 10;
+    checkPageBreak(lineHeight * 2);
+    doc.setLineWidth(0.5);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
-    doc.text(centro?.nombre_director || "Director/a del Centro", 40, y);
+    doc.text("Historial de Tramitación", margin, y);
+    y += 10;
+    doc.setFontSize(10);
+
+    request.historial.forEach((entry, index) => {
+        const neededHeight = lineHeight * 4; // Estimación base por entrada
+        checkPageBreak(neededHeight);
+
+        // Header de la entrada
+        doc.setFont("helvetica", "bold");
+        doc.setFillColor(240, 240, 240); // Gris claro
+        doc.rect(margin, y - 5, maxLineWidth, 6, 'F');
+        doc.text(`${new Date(entry.fecha).toLocaleString()} - ${entry.accion}`, margin + 2, y);
+        
+        y += lineHeight;
+        doc.setFont("helvetica", "normal");
+        doc.text(`Usuario: ${entry.autor} (${entry.rol})`, margin + 5, y);
+        y += lineHeight;
+        doc.text(`Estado resultante: ${entry.estado_nuevo.replace(/_/g, " ")}`, margin + 5, y);
+        y += lineHeight;
+
+        if (entry.observaciones) {
+            const obsPrefix = "Observaciones: ";
+            doc.setFont("helvetica", "italic");
+            const splitObs = doc.splitTextToSize(obsPrefix + entry.observaciones, maxLineWidth - 10);
+            
+            // Checkear si las observaciones caben
+            if (y + (splitObs.length * lineHeight) > pageHeight - margin) {
+                doc.addPage();
+                y = margin;
+            }
+            
+            doc.text(splitObs, margin + 5, y);
+            y += (splitObs.length * lineHeight);
+        }
+        y += 5; // Separador
+    });
+
+    // --- Firma Final ---
+    y += 15;
+    checkPageBreak(lineHeight * 4);
+    doc.setFont("helvetica", "normal");
+    doc.text("Firmado digitalmente en la aplicación FEOE.", margin, y);
+    y += lineHeight;
+    doc.setFont("helvetica", "bold");
+    doc.text(centro?.nombre_director || "Director/a del Centro", margin, y);
     
     doc.save(`Solicitud_${request.id}.pdf`);
   };
@@ -417,10 +532,6 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
         
         {/* Left Col: Data */}
         <div className="lg:col-span-2 space-y-6">
-          
-          {/* ... (Previous Sections for FEOE Period, IV-A, IV-B, V, VIII - no changes) ... */}
-          {/* I'll include the relevant sections but omit unchanged internal JSX for brevity if possible, 
-              but to ensure full file replacement I must include everything. */}
           
           {/* FEOE Periodo (Anexo II y XIII) */}
           {(request.tipo_anexo === TipoAnexo.ANEXO_II || request.tipo_anexo === TipoAnexo.ANEXO_XIII || isEditing) && (request.tipo_anexo === TipoAnexo.ANEXO_II || request.tipo_anexo === TipoAnexo.ANEXO_XIII) && (
@@ -945,13 +1056,52 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
                  <button onClick={() => { onUpdate(request.id, { estado: Estado.PENDIENTE_RESOLUCION, historial: [...request.historial, createHistoryEntry("Envío a Inspección", Estado.PENDIENTE_RESOLUCION)] }); onClose(); }} className="w-full bg-blue-600 text-white py-2 rounded text-sm flex justify-center items-center"><Send className="h-4 w-4 mr-2" /> Enviar</button>
              )}
 
+             {/* CANCELATION FLOW */}
+             <div className="border-t pt-4 mt-4">
+                 {isRequestingAnulation ? (
+                     <div className="bg-orange-50 p-3 rounded border border-orange-200 animate-in fade-in slide-in-from-top-2">
+                         <label className="block text-xs font-bold text-orange-800 mb-1">Motivo de Anulación</label>
+                         <textarea 
+                            value={anulationReason}
+                            onChange={(e) => setAnulationReason(e.target.value)}
+                            className="w-full text-sm border p-2 rounded h-20 mb-2"
+                            placeholder="Indique la causa del error..."
+                         />
+                         <div className="flex gap-2">
+                             <button onClick={() => setIsRequestingAnulation(false)} className="flex-1 bg-white border border-gray-300 text-gray-700 py-1 rounded text-xs">Cancelar</button>
+                             <button onClick={handleRequestAnulation} className="flex-1 bg-orange-600 text-white py-1 rounded text-xs">Confirmar Solicitud</button>
+                         </div>
+                     </div>
+                 ) : (
+                     <>
+                        {canConfirmAnulation && (
+                            <button onClick={handleConfirmAnulation} className="w-full bg-orange-600 text-white py-2 rounded text-sm flex justify-center items-center mb-2 hover:bg-orange-700">
+                                <CheckCircle className="h-4 w-4 mr-2" /> Confirmar Anulación
+                            </button>
+                        )}
+                        {canRequestAnulation && (
+                            <button onClick={() => setIsRequestingAnulation(true)} className="w-full text-orange-600 hover:bg-orange-50 border border-orange-200 py-2 rounded text-sm flex justify-center items-center mb-2 transition-colors">
+                                <Ban className="h-4 w-4 mr-2" /> Solicitar Anulación
+                            </button>
+                        )}
+                     </>
+                 )}
+             </div>
+
+             {/* ADMIN / SUPERUSER ZONE */}
              {isSuperUser && (
                <div className="mt-8 border-t-2 border-red-200 pt-4 bg-red-50 rounded-lg p-4">
                  <div className="flex items-center text-red-800 font-bold text-sm mb-3"><ShieldAlert className="h-4 w-4 mr-2" /> Admin Zone</div>
                  <div className="space-y-3">
-                    <select value={adminTargetState} onChange={(e) => setAdminTargetState(e.target.value as Estado)} className="w-full text-xs border rounded p-1">{Object.values(Estado).map(e => <option key={e} value={e}>{e}</option>)}</select>
-                    <textarea value={adminReason} onChange={(e) => setAdminReason(e.target.value)} className="w-full text-xs border rounded p-1 h-16" placeholder="Motivo..."></textarea>
-                    <button onClick={handleAdminChange} className="w-full bg-red-700 text-white text-xs font-bold py-2 rounded">Forzar Cambio</button>
+                    <div className="mb-4">
+                        <select value={adminTargetState} onChange={(e) => setAdminTargetState(e.target.value as Estado)} className="w-full text-xs border rounded p-1 mb-1">{Object.values(Estado).map(e => <option key={e} value={e}>{e}</option>)}</select>
+                        <textarea value={adminReason} onChange={(e) => setAdminReason(e.target.value)} className="w-full text-xs border rounded p-1 h-16 mb-1" placeholder="Motivo cambio estado..."></textarea>
+                        <button onClick={handleAdminChange} className="w-full bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-2 rounded">Forzar Estado</button>
+                    </div>
+                    
+                    <button onClick={handleDelete} className="w-full bg-gray-800 hover:bg-black text-white text-xs font-bold py-2 rounded flex items-center justify-center">
+                        <Trash2 className="h-3 w-3 mr-2" /> BORRAR SOLICITUD
+                    </button>
                  </div>
                </div>
              )}
