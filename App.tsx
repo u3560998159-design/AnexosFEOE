@@ -4,6 +4,8 @@ import { Dashboard } from './components/Dashboard';
 import { RequestForm } from './components/RequestForm';
 import { ReviewPanel } from './components/ReviewPanel';
 import { DataManagement } from './components/DataManagement';
+import { RecycleBin } from './components/RecycleBin';
+import { Toast, ToastType } from './components/Toast';
 import { Usuario, Solicitud, Estado, Centro, Alumno, Rol, TipoAnexo } from './types';
 import { USUARIOS_MOCK, SOLICITUDES_INICIALES, CENTROS as INITIAL_CENTROS, ALUMNOS as INITIAL_ALUMNOS } from './constants';
 import { UserCheck } from 'lucide-react';
@@ -17,8 +19,17 @@ const App: React.FC = () => {
   const [alumnos, setAlumnos] = useState<Alumno[]>(INITIAL_ALUMNOS);
   const [dataTab, setDataTab] = useState<'CENTROS' | 'ALUMNOS'>('CENTROS');
 
-  const [view, setView] = useState<'DASHBOARD' | 'CREATE' | 'REVIEW' | 'DATA_MANAGEMENT'>('DASHBOARD');
+  const [view, setView] = useState<'DASHBOARD' | 'CREATE' | 'REVIEW' | 'DATA_MANAGEMENT' | 'RECYCLE_BIN'>('DASHBOARD');
   const [selectedRequest, setSelectedRequest] = useState<Solicitud | null>(null);
+
+  // Toast State
+  const [toast, setToast] = useState<{ message: string, type: ToastType, isVisible: boolean }>({ 
+      message: '', type: 'SUCCESS', isVisible: false 
+  });
+
+  const showToast = (message: string, type: ToastType) => {
+      setToast({ message, type, isVisible: true });
+  };
 
   const handleLogin = (user: Usuario) => {
     setCurrentUser(user);
@@ -65,23 +76,70 @@ const App: React.FC = () => {
     };
     
     setRequests([...requests, newReq]);
+    showToast("Solicitud creada con éxito", 'SUCCESS');
     setView('DASHBOARD');
   };
 
   const handleUpdateRequest = (id: string, updates: Partial<Solicitud>) => {
     setRequests(requests.map(r => r.id === id ? { ...r, ...updates } : r));
+    showToast("Solicitud actualizada", 'SUCCESS');
     setView('DASHBOARD');
     setSelectedRequest(null);
   };
 
-  const handleDeleteRequest = (id: string) => {
-    // Usar functional update para garantizar el estado más reciente
-    setRequests(prevRequests => {
-        const newRequests = prevRequests.filter(r => r.id !== id);
-        return [...newRequests]; // Crear nueva referencia de array
-    });
-    setSelectedRequest(null);
-    setView('DASHBOARD');
+  // Soft Delete: Move to Trash
+  const handleSoftDeleteRequest = (id: string) => {
+      const target = requests.find(r => r.id === id);
+      if(!target) return;
+
+      const deleteEntry = {
+          fecha: new Date().toISOString(),
+          autor: currentUser?.nombre || 'Desconocido',
+          rol: currentUser?.rol || Rol.SUPERUSER,
+          accion: "Borrado (Papelera)",
+          estado_nuevo: Estado.PAPELERA,
+          observaciones: "Eliminado al contenedor de reciclaje"
+      };
+
+      setRequests(requests.map(r => r.id === id ? { 
+          ...r, 
+          estado: Estado.PAPELERA,
+          historial: [...r.historial, deleteEntry]
+      } : r));
+      
+      setSelectedRequest(null);
+      // El toast se dispara en el componente hijo
+      setView('DASHBOARD');
+  };
+
+  // Restore from Trash
+  const handleRestoreRequest = (id: string) => {
+      const target = requests.find(r => r.id === id);
+      if(!target) return;
+      
+      // Restauramos a BORRADOR para seguridad
+      const restoreEntry = {
+          fecha: new Date().toISOString(),
+          autor: currentUser?.nombre || 'Desconocido',
+          rol: currentUser?.rol || Rol.SUPERUSER,
+          accion: "Restauración",
+          estado_nuevo: Estado.BORRADOR,
+          observaciones: "Recuperado de la papelera"
+      };
+
+      setRequests(requests.map(r => r.id === id ? { 
+          ...r, 
+          estado: Estado.BORRADOR,
+          historial: [...r.historial, restoreEntry]
+      } : r));
+
+      showToast("Solicitud restaurada a Borrador", 'SUCCESS');
+  };
+
+  // Hard Delete: Permanent
+  const handlePermanentDelete = (id: string) => {
+      setRequests(prev => prev.filter(r => r.id !== id));
+      showToast("Solicitud eliminada permanentemente", 'WARNING');
   };
 
   const openRequest = (req: Solicitud) => {
@@ -105,7 +163,7 @@ const App: React.FC = () => {
   const pendingCount = useMemo(() => {
     if (!currentUser) return 0;
     return requests.filter(req => {
-        if (req.estado === Estado.ANULADA) return false;
+        if (req.estado === Estado.ANULADA || req.estado === Estado.PAPELERA) return false;
         if (req.estado === Estado.PENDIENTE_ANULACION) {
             return currentUser.rol === Rol.SUPERUSER;
         }
@@ -163,52 +221,72 @@ const App: React.FC = () => {
   }
 
   return (
-    <Layout user={currentUser} onLogout={handleLogout} onNavigate={handleNavigation} pendingCount={pendingCount}>
-      {view === 'DASHBOARD' && (
-        <Dashboard 
-          user={currentUser} 
-          requests={requests}
-          centros={centros}
-          alumnos={alumnos}
-          onNewRequest={() => setView('CREATE')}
-          onSelectRequest={openRequest}
-          onDeleteRequest={handleDeleteRequest}
-        />
-      )}
+    <>
+        <Layout user={currentUser} onLogout={handleLogout} onNavigate={handleNavigation} pendingCount={pendingCount}>
+        {view === 'DASHBOARD' && (
+            <Dashboard 
+            user={currentUser} 
+            requests={requests}
+            centros={centros}
+            alumnos={alumnos}
+            onNewRequest={() => setView('CREATE')}
+            onSelectRequest={openRequest}
+            onDeleteRequest={handleSoftDeleteRequest}
+            showToast={showToast}
+            />
+        )}
 
-      {view === 'CREATE' && (
-        <RequestForm 
-          user={currentUser}
-          alumnos={alumnos}
-          centros={centros}
-          onClose={() => setView('DASHBOARD')}
-          onSubmit={handleCreateRequest}
-        />
-      )}
+        {view === 'CREATE' && (
+            <RequestForm 
+            user={currentUser}
+            alumnos={alumnos}
+            centros={centros}
+            onClose={() => setView('DASHBOARD')}
+            onSubmit={handleCreateRequest}
+            />
+        )}
 
-      {view === 'REVIEW' && selectedRequest && (
-        <ReviewPanel 
-          user={currentUser}
-          request={selectedRequest}
-          alumnos={alumnos}
-          centros={centros}
-          onClose={() => setView('DASHBOARD')}
-          onUpdate={handleUpdateRequest}
-          onDelete={handleDeleteRequest}
-        />
-      )}
+        {view === 'REVIEW' && selectedRequest && (
+            <ReviewPanel 
+            user={currentUser}
+            request={selectedRequest}
+            alumnos={alumnos}
+            centros={centros}
+            onClose={() => setView('DASHBOARD')}
+            onUpdate={handleUpdateRequest}
+            onDelete={handleSoftDeleteRequest}
+            showToast={showToast}
+            />
+        )}
 
-      {view === 'DATA_MANAGEMENT' && (
-        <DataManagement 
-          centros={centros}
-          alumnos={alumnos}
-          setCentros={setCentros}
-          setAlumnos={setAlumnos}
-          activeTab={dataTab}
-          onTabChange={setDataTab}
+        {view === 'DATA_MANAGEMENT' && (
+            <DataManagement 
+            centros={centros}
+            alumnos={alumnos}
+            setCentros={setCentros}
+            setAlumnos={setAlumnos}
+            activeTab={dataTab}
+            onTabChange={setDataTab}
+            />
+        )}
+
+        {view === 'RECYCLE_BIN' && (
+            <RecycleBin 
+                deletedRequests={requests.filter(r => r.estado === Estado.PAPELERA)}
+                centros={centros}
+                onRestore={handleRestoreRequest}
+                onPermanentDelete={handlePermanentDelete}
+            />
+        )}
+        </Layout>
+        
+        <Toast 
+            message={toast.message} 
+            type={toast.type} 
+            isVisible={toast.isVisible} 
+            onClose={() => setToast(prev => ({ ...prev, isVisible: false }))} 
         />
-      )}
-    </Layout>
+    </>
   );
 };
 

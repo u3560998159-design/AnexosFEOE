@@ -3,6 +3,7 @@ import { Solicitud, Usuario, Rol, Estado, HistorialEntrada, TipoAnexo, Documento
 import { getTargetResolutionState } from '../constants';
 import { CheckCircle, XCircle, FileText, ArrowLeft, Send, History, User, ShieldAlert, Edit, Save, Trash2, Upload, AlertCircle, Eye, Calendar, UserPlus, Building2, School, GraduationCap, Globe, Download, PenTool, ClipboardSignature, Ban, Eraser } from 'lucide-react';
 import { jsPDF } from "jspdf";
+import { ToastType } from './Toast';
 
 interface ReviewPanelProps {
   request: Solicitud;
@@ -12,6 +13,7 @@ interface ReviewPanelProps {
   onClose: () => void;
   onUpdate: (id: string, updates: Partial<Solicitud>) => void;
   onDelete: (id: string) => void;
+  showToast: (msg: string, type: ToastType) => void; // Nuevo prop
 }
 
 const MOTIVOS_ANEXO_I = [
@@ -52,7 +54,7 @@ const PROVINCIAS = [
     "Ceuta", "Melilla", "Extranjero"
 ];
 
-export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos: allAlumnos, centros, onClose, onUpdate, onDelete }) => {
+export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos: allAlumnos, centros, onClose, onUpdate, onDelete, showToast }) => {
   const [observaciones, setObservaciones] = useState('');
   
   // Modos de Edición (Director)
@@ -315,6 +317,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
 
   const confirmDelete = () => {
       onDelete(request.id);
+      showToast("Solicitud movida a la papelera", 'SUCCESS');
       setDeleteModalOpen(false);
   };
 
@@ -548,9 +551,9 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
                       <h3 className="text-lg font-bold">Confirmar Eliminación</h3>
                   </div>
                   <p className="text-gray-600 mb-6">
-                      ¿Está seguro de que desea eliminar la solicitud <strong>{request.id}</strong>? 
+                      ¿Está seguro de que desea mover la solicitud <strong>{request.id}</strong> a la papelera? 
                       <br/><br/>
-                      <span className="text-xs text-red-500 font-bold uppercase">Esta acción es irreversible y eliminará el registro permanentemente del sistema.</span>
+                      <span className="text-xs text-gray-500">Podrá recuperarla desde la sección de Papelera durante 30 días.</span>
                   </p>
                   <div className="flex justify-end space-x-3">
                       <button 
@@ -563,7 +566,7 @@ export const ReviewPanel: React.FC<ReviewPanelProps> = ({ request, user, alumnos
                           onClick={confirmDelete}
                           className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 shadow-sm text-sm font-bold flex items-center"
                       >
-                          <Trash2 className="h-4 w-4 mr-2" /> Eliminar Definitivamente
+                          <Trash2 className="h-4 w-4 mr-2" /> Eliminar
                       </button>
                   </div>
               </div>

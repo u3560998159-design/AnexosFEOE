@@ -1,6 +1,6 @@
 import React from 'react';
 import { Usuario, Rol } from '../types';
-import { LogOut, User, Menu, BookOpen, Database, Bell } from 'lucide-react';
+import { LogOut, User, Menu, BookOpen, Database, Bell, Trash2 } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -14,6 +14,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onNavi
   if (!user) return <>{children}</>;
 
   const canManageData = user.rol === Rol.SUPERUSER || user.rol === Rol.DG || user.rol === Rol.DIRECTOR;
+  const isSuperUser = user.rol === Rol.SUPERUSER;
 
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">
@@ -61,9 +62,24 @@ export const Layout: React.FC<LayoutProps> = ({ children, user, onLogout, onNavi
                   className="w-full flex items-center px-4 py-2 text-sm font-medium text-rayuela-100 hover:bg-rayuela-600 hover:text-white rounded-md transition-colors opacity-70 text-left"
                 >
                   <span className="w-5 mr-3 text-center">•</span>
-                  Alumnado FCT
+                  Alumnado FP
                 </button>
               </>
+            )}
+
+            {isSuperUser && (
+                <>
+                    <div className="mt-4 px-4 mb-2 text-xs text-rayuela-300 uppercase tracking-wider font-semibold">
+                         Administración
+                    </div>
+                    <button 
+                        onClick={() => onNavigate('RECYCLE_BIN')}
+                        className="w-full flex items-center px-4 py-2 text-sm font-medium text-red-100 hover:bg-red-800 hover:text-white rounded-md transition-colors opacity-90 text-left"
+                    >
+                        <Trash2 className="mr-3 h-5 w-5" />
+                        Papelera de Reciclaje
+                    </button>
+                </>
             )}
           </nav>
         </div>

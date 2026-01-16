@@ -1,3 +1,4 @@
+
 export enum Rol {
   DIRECTOR = 'DIRECTOR',
   INSPECTOR = 'INSPECTOR',
@@ -14,7 +15,8 @@ export enum Estado {
   RESUELTA_POSITIVA = 'RESUELTA_POSITIVA',
   RESUELTA_NEGATIVA = 'RESUELTA_NEGATIVA',
   PENDIENTE_ANULACION = 'PENDIENTE_ANULACION',
-  ANULADA = 'ANULADA'
+  ANULADA = 'ANULADA',
+  PAPELERA = 'PAPELERA' // Nuevo estado para Soft Delete
 }
 
 export enum TipoAnexo {

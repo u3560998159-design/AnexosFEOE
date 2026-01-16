@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Solicitud, Usuario, Rol, Estado, TipoAnexo, Centro, Alumno } from '../types';
 import { Plus, Eye, Clock, ArrowUpDown, ArrowUp, ArrowDown, Search, AlertTriangle, Trash2, Filter, ChevronLeft, ChevronRight, X, AlertCircle } from 'lucide-react';
+import { ToastType } from './Toast';
 
 interface DashboardProps {
   user: Usuario;
@@ -10,6 +11,7 @@ interface DashboardProps {
   onNewRequest: () => void;
   onSelectRequest: (req: Solicitud) => void;
   onDeleteRequest: (id: string) => void;
+  showToast: (msg: string, type: ToastType) => void; // Nuevo prop
 }
 
 type SortKey = 'id' | 'fecha' | 'centro' | 'tipo' | 'estado';
@@ -20,7 +22,7 @@ interface SortConfig {
 
 const ITEMS_PER_PAGE = 10;
 
-export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, alumnos, onNewRequest, onSelectRequest, onDeleteRequest }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, alumnos, onNewRequest, onSelectRequest, onDeleteRequest, showToast }) => {
   // --- Lógica de Filtros ---
   const getDefaultFilter = (u: Usuario) => {
     if (u.rol === Rol.INSPECTOR) return Estado.PENDIENTE_INSPECCION;
@@ -52,7 +54,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
 
   // --- Funciones Auxiliares ---
   const isStaleRequest = (req: Solicitud) => {
-      if (req.estado === Estado.RESUELTA_POSITIVA || req.estado === Estado.RESUELTA_NEGATIVA || req.estado === Estado.ANULADA) return false;
+      if (req.estado === Estado.RESUELTA_POSITIVA || req.estado === Estado.RESUELTA_NEGATIVA || req.estado === Estado.ANULADA || req.estado === Estado.PAPELERA) return false;
       const lastEntry = req.historial.length > 0 ? req.historial[req.historial.length - 1] : null;
       const dateString = lastEntry ? lastEntry.fecha : req.fecha_creacion;
       const lastDate = new Date(dateString);
@@ -82,6 +84,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
   const confirmDelete = () => {
       if (itemToDelete) {
           onDeleteRequest(itemToDelete);
+          showToast("Solicitud movida a la papelera", 'SUCCESS');
           setDeleteModalOpen(false);
           setItemToDelete(null);
       }
@@ -95,6 +98,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
   // --- Procesamiento de Datos ---
   const processedRequests = useMemo(() => {
     let result = requests.filter(req => {
+      // EXCLUIR PAPELERA DEL DASHBOARD PRINCIPAL
+      if (req.estado === Estado.PAPELERA) return false;
+
       const centro = getCentro(req.codigo_centro);
       
       if (user.rol === Rol.DIRECTOR && req.codigo_centro !== user.codigo_centro) return false;
@@ -188,9 +194,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
                       <h3 className="text-lg font-bold">Confirmar Eliminación</h3>
                   </div>
                   <p className="text-gray-600 mb-6">
-                      ¿Está seguro de que desea eliminar la solicitud <strong>{itemToDelete}</strong>? 
+                      ¿Está seguro de que desea mover la solicitud <strong>{itemToDelete}</strong> a la papelera? 
                       <br/><br/>
-                      <span className="text-xs text-red-500 font-bold uppercase">Esta acción es irreversible.</span>
+                      <span className="text-xs text-gray-500">Podrá recuperarla desde la sección de Papelera durante 30 días.</span>
                   </p>
                   <div className="flex justify-end space-x-3">
                       <button 
@@ -203,7 +209,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
                           onClick={confirmDelete}
                           className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 shadow-sm text-sm font-bold flex items-center"
                       >
-                          <Trash2 className="h-4 w-4 mr-2" /> Eliminar Definitivamente
+                          <Trash2 className="h-4 w-4 mr-2" /> Eliminar
                       </button>
                   </div>
               </div>
@@ -250,7 +256,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
                      <div className="cursor-pointer hover:text-rayuela-700" onClick={() => handleSort('estado')}>Estado <SortIcon colKey="estado" /></div>
                      {filterEstado !== 'ALL' && <button onClick={() => setFilterEstado('ALL')} className="text-[10px] bg-rayuela-100 text-rayuela-700 px-2 py-0.5 rounded border border-rayuela-300"><Filter className="h-3 w-3 inline" /> Todos</button>}
                   </div>
-                  <select value={filterEstado} onChange={(e) => setFilterEstado(e.target.value)} className={`w-full text-xs p-1 border rounded ${filterEstado !== 'ALL' ? 'bg-rayuela-50 font-bold' : ''}`}><option value="ALL">Todos</option>{Object.values(Estado).map(e => <option key={e} value={e}>{e.replace(/_/g, ' ')}</option>)}</select>
+                  <select value={filterEstado} onChange={(e) => setFilterEstado(e.target.value)} className={`w-full text-xs p-1 border rounded ${filterEstado !== 'ALL' ? 'bg-rayuela-50 font-bold' : ''}`}><option value="ALL">Todos</option>{Object.values(Estado).filter(e => e !== Estado.PAPELERA).map(e => <option key={e} value={e}>{e.replace(/_/g, ' ')}</option>)}</select>
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
               </tr>
