@@ -83,6 +83,10 @@ const App: React.FC = () => {
     setSelectedRequest(null);
   };
 
+  const handleToggleRead = (id: string) => {
+      setRequests(requests.map(r => r.id === id ? { ...r, leida: !r.leida } : r));
+  };
+
   const handleSoftDeleteRequest = (id: string) => {
       const target = requests.find(r => r.id === id);
       if(!target) return;
@@ -135,6 +139,10 @@ const App: React.FC = () => {
 
   const openRequest = (req: Solicitud) => {
     setSelectedRequest(req);
+    // Mark as read when opened
+    if (!req.leida) {
+        handleToggleRead(req.id);
+    }
     setView('REVIEW');
   };
 
@@ -153,7 +161,7 @@ const App: React.FC = () => {
   const pendingCount = useMemo(() => {
     if (!currentUser) return 0;
     return requests.filter(req => {
-        if (req.estado === Estado.ANULADA || req.estado === Estado.PAPELERA) return false;
+        if (req.estado === Estado.PAPELERA) return false;
         if (req.estado === Estado.PENDIENTE_ANULACION) {
             return currentUser.rol === Rol.SUPERUSER;
         }
@@ -221,6 +229,7 @@ const App: React.FC = () => {
             onNewRequest={() => setView('CREATE')}
             onSelectRequest={openRequest}
             onDeleteRequest={handleSoftDeleteRequest}
+            onToggleRead={handleToggleRead}
             showToast={showToast}
             />
         )}

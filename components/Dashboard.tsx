@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Solicitud, Usuario, Rol, Estado, TipoAnexo, Centro, Alumno } from '../types';
-import { Plus, Eye, Clock, ArrowUpDown, ArrowUp, ArrowDown, Search, AlertTriangle, Trash2, Filter, ChevronLeft, ChevronRight, AlertCircle } from 'lucide-react';
+import { Plus, Eye, Clock, ArrowUpDown, ArrowUp, ArrowDown, Search, AlertTriangle, Trash2, Filter, ChevronLeft, ChevronRight, AlertCircle, Mail, MailOpen } from 'lucide-react';
 import { ToastType } from './Toast';
 
 interface DashboardProps {
@@ -12,6 +12,7 @@ interface DashboardProps {
   onSelectRequest: (req: Solicitud) => void;
   onDeleteRequest: (id: string) => void;
   showToast: (msg: string, type: ToastType) => void; 
+  onToggleRead: (id: string) => void; // Nuevo prop
 }
 
 type SortKey = 'id' | 'fecha' | 'centro' | 'tipo' | 'estado';
@@ -22,8 +23,7 @@ interface SortConfig {
 
 const ITEMS_PER_PAGE = 10;
 
-export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, alumnos, onNewRequest, onSelectRequest, onDeleteRequest, showToast }) => {
-  // --- Lógica de Filtros ---
+export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, alumnos, onNewRequest, onSelectRequest, onDeleteRequest, showToast, onToggleRead }) => {
   const getDefaultFilter = (u: Usuario) => {
     if (u.rol === Rol.INSPECTOR) return Estado.PENDIENTE_INSPECCION;
     if (u.rol === Rol.DG) return Estado.PENDIENTE_RESOLUCION_DG;
@@ -49,16 +49,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
   
   const getNombresAlumnos = (ids: string[]) => {
     return alumnos.filter(a => ids.includes(a.dni)).map(a => `${a.nombre} ${a.apellidos}`).join(', ');
-  };
-
-  const isStaleRequest = (req: Solicitud) => {
-      if (req.estado === Estado.RESUELTA_POSITIVA || req.estado === Estado.RESUELTA_NEGATIVA || req.estado === Estado.ANULADA || req.estado === Estado.PAPELERA) return false;
-      const lastEntry = req.historial.length > 0 ? req.historial[req.historial.length - 1] : null;
-      const dateString = lastEntry ? lastEntry.fecha : req.fecha_creacion;
-      const lastDate = new Date(dateString);
-      const now = new Date();
-      const diffTime = Math.abs(now.getTime() - lastDate.getTime());
-      return Math.ceil(diffTime / (1000 * 60 * 60 * 24)) > 10;
   };
 
   const handleSort = (key: SortKey) => {
@@ -88,6 +78,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
   const cancelDelete = () => {
       setDeleteModalOpen(false);
       setItemToDelete(null);
+  };
+
+  const handleReadToggle = (e: React.MouseEvent, id: string) => {
+      e.stopPropagation();
+      onToggleRead(id);
   };
 
   const processedRequests = useMemo(() => {
@@ -140,7 +135,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
   const totalPages = Math.ceil(processedRequests.length / ITEMS_PER_PAGE);
 
   const pendingCount = processedRequests.filter(r => {
-    if (r.estado === Estado.ANULADA) return false;
+    //if (r.estado === Estado.ANULADA) return false;
     if (user.rol === Rol.SUPERUSER && r.estado === Estado.PENDIENTE_ANULACION) return true;
     if (user.rol === Rol.INSPECTOR) return r.estado === Estado.PENDIENTE_INSPECCION;
     if (user.rol === Rol.DG) return r.estado === Estado.PENDIENTE_RESOLUCION_DG;
@@ -157,7 +152,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
       [Estado.RESUELTA_POSITIVA]: "bg-green-100 text-green-800",
       [Estado.RESUELTA_NEGATIVA]: "bg-red-100 text-red-800",
       [Estado.PENDIENTE_ANULACION]: "bg-orange-100 text-orange-800 border border-orange-200",
-      [Estado.ANULADA]: "bg-gray-600 text-white line-through"
+      [Estado.PAPELERA]: "bg-gray-600 text-white line-through"
     };
     
     let displayText = estado.replace(/_/g, ' ');
@@ -232,6 +227,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-10"></th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 min-w-[150px]" onClick={() => handleSort('fecha')}>ID / Fecha <SortIcon colKey="fecha" /></th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[200px]">
                   <div className="flex items-center cursor-pointer hover:text-rayuela-700 mb-2" onClick={() => handleSort('centro')}>Centro <SortIcon colKey="centro" /></div>
@@ -257,18 +253,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {processedRequests.length === 0 ? (
-                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-500 text-sm">No hay resultados.</td></tr>
+                <tr><td colSpan={7} className="px-6 py-12 text-center text-gray-500 text-sm">No hay resultados.</td></tr>
               ) : (
                 currentItems.map((req) => {
                   const centro = getCentro(req.codigo_centro);
-                  const isStale = isStaleRequest(req);
-                  const isAnulada = req.estado === Estado.ANULADA;
+                  const isRead = req.leida;
+                  const rowClass = isRead ? "bg-white" : "bg-white font-semibold";
                   return (
-                    <tr key={req.id} className={isAnulada ? "bg-gray-100 text-gray-400" : `hover:bg-gray-50 ${isStale ? 'bg-red-50' : ''}`} onClick={() => onSelectRequest(req)}>
+                    <tr key={req.id} className={`hover:bg-gray-50 ${rowClass}`} onClick={() => onSelectRequest(req)}>
+                      <td className="px-2 py-4 whitespace-nowrap text-center">
+                          <button 
+                            onClick={(e) => handleReadToggle(e, req.id)}
+                            className="text-gray-400 hover:text-rayuela-600 focus:outline-none"
+                            title={isRead ? "Marcar como No Leída" : "Marcar como Leída"}
+                          >
+                             {isRead ? <MailOpen className="h-4 w-4" /> : <Mail className="h-4 w-4 text-rayuela-600 fill-current" />}
+                          </button>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap cursor-pointer">
                          <div className="flex items-center">
-                            {isStale && <AlertTriangle className="h-4 w-4 text-red-500 mr-2 flex-shrink-0" />}
-                            <div><div className={`text-sm font-medium ${isAnulada ? 'line-through' : 'text-rayuela-700'}`}>{req.id}</div><div className="text-xs opacity-75">{req.fecha_creacion}</div></div>
+                            <div>
+                                <div className={`text-sm ${!isRead ? 'font-bold text-gray-900' : 'text-rayuela-700'}`}>{req.id}</div>
+                                <div className="text-xs opacity-75">{req.fecha_creacion}</div>
+                            </div>
                          </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap cursor-pointer"><div className="text-sm">{centro?.nombre}</div><div className="text-xs">{centro?.localidad}</div></td>
@@ -277,7 +284,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
                       <td className="px-6 py-4 whitespace-nowrap cursor-pointer">{getStatusBadge(req.estado)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                          <div className="flex items-center justify-end space-x-2">
-                            {/* BOTÓN DE BORRADO SUPERUSER */}
                             {user.rol === Rol.SUPERUSER && (
                               <button 
                                 type="button"
@@ -288,7 +294,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, requests, centros, a
                                 <Trash2 className="h-4 w-4" />
                               </button>
                             )}
-                            <button type="button" onClick={(e) => { e.stopPropagation(); onSelectRequest(req); }} className={`${isAnulada ? 'text-gray-500' : 'text-rayuela-700 hover:text-rayuela-900'} flex items-center px-2 py-1 rounded hover:bg-gray-100`}><Eye className="h-4 w-4 mr-1" /> Ver</button>
+                            <button type="button" onClick={(e) => { e.stopPropagation(); onSelectRequest(req); }} className={`text-rayuela-700 hover:text-rayuela-900 flex items-center px-2 py-1 rounded hover:bg-gray-100`}><Eye className="h-4 w-4 mr-1" /> Ver</button>
                          </div>
                       </td>
                     </tr>

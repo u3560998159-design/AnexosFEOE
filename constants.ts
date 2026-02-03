@@ -1,19 +1,42 @@
+
 import { Alumno, Centro, Solicitud, Usuario, Rol, Estado, TipoAnexo } from './types';
 
 export const CENTROS: Centro[] = [
-  { codigo: "06006899", nombre: "I.E.S. San Roque", localidad: "Badajoz", provincia: "Badajoz", nombre_director: "Director San Roque" },
-  { codigo: "10000356", nombre: "I.E.S. Tierra de Barros", localidad: "Aceuchal", provincia: "Badajoz", nombre_director: "María González (Directora)" },
-  { codigo: "10003789", nombre: "I.E.S. El Brocense", localidad: "Cáceres", provincia: "Cáceres", nombre_director: "Pedro Alcántara (Director)" }
+  { 
+    codigo: "06006899", 
+    nombre: "I.E.S. San Roque", 
+    localidad: "Badajoz", 
+    provincia: "Badajoz", 
+    nombre_director: "Director San Roque",
+    convenios: ["10013410-1", "10013410-2", "10013410-3"]
+  },
+  { 
+    codigo: "10000356", 
+    nombre: "I.E.S. Tierra de Barros", 
+    localidad: "Aceuchal", 
+    provincia: "Badajoz", 
+    nombre_director: "María González (Directora)",
+    convenios: ["20025678-A", "20025678-B"]
+  },
+  { 
+    codigo: "10003789", 
+    nombre: "I.E.S. El Brocense", 
+    localidad: "Cáceres", 
+    provincia: "Cáceres", 
+    nombre_director: "Pedro Alcántara (Director)",
+    convenios: ["30039999-X", "30039999-Y", "30039999-Z"]
+  }
 ];
 
 export const ALUMNOS: Alumno[] = [
-  { dni: "80247196N", nombre: "Juan", apellidos: "García Pérez", codigo_centro: "06006899", curso: "2º C.F.G.B.", grupo: "A" },
-  { dni: "80238007T", nombre: "María", apellidos: "López Silva", codigo_centro: "06006899", curso: "2º C.F.G.B.", grupo: "A" },
-  { dni: "12345678Z", nombre: "Carlos", apellidos: "Ruiz Mateos", codigo_centro: "10000356", curso: "2º DUAL", grupo: "B" },
-  { dni: "87654321X", nombre: "Ana", apellidos: "Botella Aznar", codigo_centro: "10003789", curso: "1º SMR", grupo: "A" },
-  { dni: "11111111H", nombre: "Laura", apellidos: "Gómez Redondo", codigo_centro: "06006899", curso: "1º DAM", grupo: "A" },
-  { dni: "22222222J", nombre: "David", apellidos: "Fernández Mota", codigo_centro: "06006899", curso: "2º DAW", grupo: "C" },
-  { dni: "33333333K", nombre: "Elena", apellidos: "Vázquez Soria", codigo_centro: "06006899", curso: "1º SMR", grupo: "B" }
+  { dni: "80247196N", nombre: "Juan", apellidos: "García Pérez", codigo_centro: "06006899", curso: "2º C.F.G.B.", grupo: "A", fecha_nacimiento: "2007-05-15" },
+  { dni: "80238007T", nombre: "María", apellidos: "López Silva", codigo_centro: "06006899", curso: "2º C.F.G.B.", grupo: "A", fecha_nacimiento: "2006-10-20" },
+  { dni: "12345678Z", nombre: "Carlos", apellidos: "Ruiz Mateos", codigo_centro: "10000356", curso: "2º DUAL", grupo: "B", fecha_nacimiento: "2005-01-01" },
+  // Ana Botella -> DNI Solicitado para alerta de 15 años
+  { dni: "87654321X", nombre: "Ana", apellidos: "Botella Aznar", codigo_centro: "10003789", curso: "1º SMR", grupo: "A", fecha_nacimiento: "2010-06-15" }, 
+  { dni: "11111111H", nombre: "Laura", apellidos: "Gómez Redondo", codigo_centro: "06006899", curso: "1º DAM", grupo: "A", fecha_nacimiento: "2000-12-12" },
+  { dni: "22222222J", nombre: "David", apellidos: "Fernández Mota", codigo_centro: "06006899", curso: "2º DAW", grupo: "C", fecha_nacimiento: "2002-03-30" },
+  { dni: "33333333K", nombre: "Elena", apellidos: "Vázquez Soria", codigo_centro: "06006899", curso: "1º SMR", grupo: "B", fecha_nacimiento: "2008-01-01" }
 ];
 
 export const USUARIOS_MOCK: Usuario[] = [
@@ -37,6 +60,7 @@ const BASE_SOLICITUDES: Solicitud[] = [
     alumnos_implicados: ["80247196N"],
     documentos_adjuntos: [{ nombre: "memoria_proyecto.pdf", fecha: "2025-03-15" }],
     motivo: "Enfermedad, accidente o causas sobrevenidas",
+    leida: false,
     historial: [
       {
         fecha: "2025-03-15T10:00:00.000Z",
@@ -62,6 +86,7 @@ const BASE_SOLICITUDES: Solicitud[] = [
     codigo_centro: "10003789",
     alumnos_implicados: ["87654321X"],
     documentos_adjuntos: [],
+    leida: true,
     historial: [
       {
         fecha: "2025-03-20T09:30:00.000Z",
@@ -80,6 +105,7 @@ const BASE_SOLICITUDES: Solicitud[] = [
     codigo_centro: "06006899",
     alumnos_implicados: [], 
     documentos_adjuntos: [{ nombre: "compromiso_dual.pdf", fecha: "2025-02-10" }],
+    leida: true,
     historial: [
       {
         fecha: "2025-02-10T08:00:00.000Z",
@@ -98,7 +124,6 @@ const BASE_SOLICITUDES: Solicitud[] = [
       }
     ]
   },
-  // SOLICITUDES ANTIGUAS (MÁS DE 10 DÍAS)
   {
     id: "2025-06006899-II-OLD-1",
     tipo_anexo: TipoAnexo.ANEXO_II,
@@ -109,9 +134,10 @@ const BASE_SOLICITUDES: Solicitud[] = [
     feoe_inicio: "2025-02-01",
     feoe_fin: "2025-03-01",
     documentos_adjuntos: [],
+    leida: false,
     historial: [
       {
-        fecha: "2025-01-10T09:00:00.000Z", // Más de 10 días
+        fecha: "2025-01-10T09:00:00.000Z",
         autor: "Director San Roque",
         rol: Rol.DIRECTOR,
         estado_nuevo: Estado.PENDIENTE_RESOLUCION_DG,
@@ -132,6 +158,7 @@ const BASE_SOLICITUDES: Solicitud[] = [
     empresa_provincia: "Cáceres",
     tutor_empresa: "Juan Antiguo",
     documentos_adjuntos: [],
+    leida: false,
     historial: [
        {
         fecha: "2025-01-15T09:00:00.000Z",
@@ -141,7 +168,7 @@ const BASE_SOLICITUDES: Solicitud[] = [
         accion: "Creación y Envío"
       },
       {
-        fecha: "2025-01-20T10:00:00.000Z", // Más de 10 días desde el último cambio
+        fecha: "2025-01-20T10:00:00.000Z", 
         autor: "Inspector Cáceres",
         rol: Rol.INSPECTOR,
         estado_nuevo: Estado.PENDIENTE_RESOLUCION_DELEGACION,
@@ -180,6 +207,7 @@ const generateMockRequests = (): Solicitud[] => {
       empresa_provincia: "Cáceres",
       empresa_localidad: "Cáceres",
       tutor_empresa: "Tutor Mock",
+      leida: i % 3 === 0,
       historial: [
         {
           fecha: `${fecha}T09:00:00.000Z`,
@@ -196,10 +224,6 @@ const generateMockRequests = (): Solicitud[] => {
 
 export const SOLICITUDES_INICIALES = [...BASE_SOLICITUDES, ...generateMockRequests()];
 
-/**
- * Determina el estado de resolución objetivo (DG o DELEGACION)
- * basado en el tipo de anexo.
- */
 export const getTargetResolutionState = (tipo: TipoAnexo): Estado => {
   switch (tipo) {
     case TipoAnexo.ANEXO_IV_A:

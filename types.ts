@@ -10,13 +10,13 @@ export enum Rol {
 export enum Estado {
   BORRADOR = 'BORRADOR',
   PENDIENTE_INSPECCION = 'PENDIENTE_INSPECCION',
-  PENDIENTE_RESOLUCION_DG = 'PENDIENTE_RESOLUCION_DG', // Nuevo
-  PENDIENTE_RESOLUCION_DELEGACION = 'PENDIENTE_RESOLUCION_DELEGACION', // Nuevo
+  PENDIENTE_RESOLUCION_DG = 'PENDIENTE_RESOLUCION_DG',
+  PENDIENTE_RESOLUCION_DELEGACION = 'PENDIENTE_RESOLUCION_DELEGACION',
   RESUELTA_POSITIVA = 'RESUELTA_POSITIVA',
   RESUELTA_NEGATIVA = 'RESUELTA_NEGATIVA',
   PENDIENTE_ANULACION = 'PENDIENTE_ANULACION',
-  ANULADA = 'ANULADA',
-  PAPELERA = 'PAPELERA' // Nuevo estado para Soft Delete
+  // ANULADA eliminada, unificada con PAPELERA
+  PAPELERA = 'PAPELERA' 
 }
 
 export enum TipoAnexo {
@@ -27,7 +27,6 @@ export enum TipoAnexo {
   ANEXO_V = 'Anexo V - Solicitud de dualización de Ciclos Formativos',
   ANEXO_VIII_A = 'Anexo VIII-A - Solicitud condiciones extraordinarias',
   ANEXO_VIII_B = 'Anexo VIII-B Condiciones Extraordinarias mes de Julio',
-  // ANEXO_IX eliminado
   ANEXO_XIII = 'Anexo XIII - Solicitud de adaptación de periodo FEOE con alumnos NEFE'
 }
 
@@ -36,7 +35,8 @@ export interface Centro {
   nombre: string;
   localidad: string;
   provincia: 'Badajoz' | 'Cáceres';
-  nombre_director?: string; // Nuevo campo
+  nombre_director?: string;
+  convenios?: string[]; // Nuevo: Lista de convenios disponibles
 }
 
 export interface Alumno {
@@ -46,29 +46,29 @@ export interface Alumno {
   codigo_centro: string;
   curso: string;
   grupo: string;
+  fecha_nacimiento?: string; // Nuevo: Para validación de edad 15/16 años
 }
 
 export interface Usuario {
   id: string;
   nombre: string;
   rol: Rol;
-  // Contexto del usuario
-  codigo_centro?: string; // Para directores
-  provincia?: 'Badajoz' | 'Cáceres'; // Para inspectores/delegados
+  codigo_centro?: string; 
+  provincia?: 'Badajoz' | 'Cáceres'; 
 }
 
 export interface Documento {
   nombre: string;
   fecha: string;
-  tipo?: string; // Nuevo: Para categorizar documentos (ej: 'CONVENIO', 'PLAN')
-  url?: string; // Simulación de URL
+  tipo?: string; 
+  url?: string; 
 }
 
 export interface HistorialEntrada {
-  fecha: string; // ISO String
+  fecha: string; 
   autor: string;
   rol: Rol;
-  accion: string; // "Creación", "Informe Favorable", "Resolución Positiva", etc.
+  accion: string; 
   estado_nuevo: Estado;
   observaciones?: string;
 }
@@ -79,27 +79,22 @@ export interface Solicitud {
   estado: Estado;
   fecha_creacion: string;
   codigo_centro: string;
-  alumnos_implicados: string[]; // DNIs
+  alumnos_implicados: string[]; 
   documentos_adjuntos: Documento[];
-  historial: HistorialEntrada[]; // Nuevo campo de trazabilidad
-  // Campos para control de anulación
-  solicitante_anulacion?: string; // ID del usuario que solicitó anulación
-  
-  // Campos específicos Anexo I
+  historial: HistorialEntrada[];
+  solicitante_anulacion?: string;
+  leida: boolean; // Nuevo: Estado de lectura (Buzón)
+
+  // Campos específicos
   motivo?: string;
   motivo_otros?: string;
-  // Campos específicos Anexo II y XIII
   feoe_inicio?: string;
   feoe_fin?: string;
-  // Campos específicos Anexo IV-A
-  numero_convenio?: string;
+  numero_convenio?: string; // Ahora puede venir de un Select
   organismo_publico?: string;
-  // Campos específicos Anexo IV-B
   tutor_dual_destino?: string;
   centro_destino_codigo?: string;
-  // Campos específicos Anexo V
   curso_dual?: string;
-  // Campos específicos Anexo VIII-A y VIII-B
   condicion_extraordinaria?: string;
   justificacion_extraordinaria?: string;
   empresa_nombre?: string;
@@ -107,9 +102,7 @@ export interface Solicitud {
   empresa_provincia?: string;
   empresa_direccion_extranjera?: string;
   tutor_empresa?: string;
-  // Campos específicos Anexo XIII
   justificacion_nefe?: string;
-  // Campos de observaciones/resolución
   observaciones_inspeccion?: string;
   observaciones_resolucion?: string;
   autor_resolucion?: string;
